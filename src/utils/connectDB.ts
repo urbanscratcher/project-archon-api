@@ -27,10 +27,10 @@ export async function connectDB(req: Request, res: Response, next: NextFunction,
   let conn;
   try {
     conn = await pool.getConnection();
-    await fn(conn, req, res);
+    await fn(conn, req, res, next);
   } catch (e) {
     next(e)
   } finally {
-    conn && conn.release();
+    conn && await conn?.release();
   }
 }

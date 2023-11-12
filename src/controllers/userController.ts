@@ -17,7 +17,7 @@ class UserDto extends Dto {
   jobTitle?: string | undefined;
   biography?: string | undefined;
   careers?: string | undefined;
-  categories?: Array<any> | undefined;
+  topics?: Array<any> | undefined;
   createdAt: string;
 
   constructor(obj: Array<any>) {
@@ -33,11 +33,11 @@ class UserDto extends Dto {
     this.biography = obj[0].biography ?? undefined;
     this.careers = obj[0].careers ? obj[0].careers.replace(/"/g, "'") : undefined;
     this.createdAt = obj[0].created_at.toISOString();
-    this.categories = Array.isArray(obj) && obj.length > 1 ? obj.map((o: any) => {
+    this.topics = Array.isArray(obj) && obj.length > 1 ? obj.map((o: any) => {
       return {
-        idx: o.category_idx,
-        name: o.category_name,
-        seq: o.category_seq
+        idx: o.topic_idx,
+        name: o.topic_name,
+        seq: o.topic_seq
       }
     }) : undefined;
 
@@ -45,7 +45,8 @@ class UserDto extends Dto {
 }
 
 
-export async function createUser(conn: any, req: Request, res: Response) {
+
+export async function createUser(conn: any, req: Request, res: Response, next: NextFunction) {
   // parsing
   const { email, password, first_name: firstName, last_name: lastName } = req.body;
   const isAdmin = Boolean(req.body.is_admin === 'true');
@@ -53,7 +54,7 @@ export async function createUser(conn: any, req: Request, res: Response) {
   const jobTitle = req.body?.job_title || null;
   const biography = req.body?.biography || null;
   const careers = req.body?.careers ? toArray(req.body?.careers) : null;
-  const categories = req.body?.categories ? toArray(req.body?.categories) : null;
+  const topics = req.body?.topics ? toArray(req.body?.topics) : null;
 
 
   // required check
@@ -65,18 +66,28 @@ export async function createUser(conn: any, req: Request, res: Response) {
     const result = await conn.query(`INSERT INTO USER (email, password, first_name, last_name, is_admin, avatar, job_title, biography, careers, created_at) values ('${email}', '${password}', '${firstName}', '${lastName}', ${isAdmin}, ${nullableField(avatar)}, ${nullableField(jobTitle)}, ${nullableField(biography)}, ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}, '${toMysqlDate()}')`);
     logger.debug({ res: result }, 'DB response');
 
-    categories.forEach(async (categoryIdx: number) => {
-      const cateResult = await conn.query(`INSERT INTO USER_CATEGORY (user_idx, category_idx) values (${Number(result.insertId)}, ${categoryIdx})`);
-      logger.debug({ res: cateResult }, 'DB response');
-    })
+    if (topics) {
+      for (const topicIdx of topics) {
+        const topic = await conn.query(`SELECT * FROM TOPIC WHERE idx = ${topicIdx}`);
+
+        console.log(topic);
+        if (topic.length <= 0) {
+          throw new NotFoundError(`topic not exist`);
+        }
+      }
+
+      topics.forEach(async (topicIdx: number) => {
+        const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (${Number(result.insertId)}, ${topicIdx})`);
+        logger.debug({ res: cateResult }, 'DB response');
+      })
+    }
 
     await conn.commit();
+    respond(res, 201);
   } catch (e) {
     await conn.rollback();
-    throw e;
+    next(e);
   }
-
-  respond(res, 201);
 }
 
 export async function getUsers(conn: any, req: Request, res: Response) {
@@ -93,10 +104,10 @@ export async function getUsers(conn: any, req: Request, res: Response) {
     c.idx as idx,
     c.name as name,
     c.seq as seq
-  FROM USER_CATEGORY uc
-  LEFT JOIN CATEGORY c ON uc.category_idx  = c.idx
+  FROM USER_TOPIC uc
+  LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
   WHERE user_idx = ${u.idx}`);
-    u.categories = foundExtraInfo.length > 0 ? foundExtraInfo : undefined;
+    u.topics = foundExtraInfo.length > 0 ? foundExtraInfo : undefined;
     usersWithExtraInfo.push(u);
   }
 
@@ -122,12 +133,12 @@ export async function getUser(conn: any, req: Request, res: Response) {
 	u.biography as biography,
 	u.careers as careers,
 	u.created_at as created_at,
-	c.idx as category_idx,
-	c.name as category_name,
-	c.seq as category_seq
+	c.idx as topic_idx,
+	c.name as topic_name,
+	c.seq as topic_seq
 FROM USER u
-LEFT JOIN USER_CATEGORY uc ON u.idx = uc.user_idx 
-LEFT JOIN CATEGORY c ON uc.category_idx = c.idx 
+LEFT JOIN USER_TOPIC uc ON u.idx = uc.user_idx 
+LEFT JOIN TOPIC c ON uc.topic_idx = c.idx 
 WHERE u.idx = ${idx}
 AND u.del_at is NULL`);
   if (foundUsers.length <= 0) {
@@ -135,14 +146,14 @@ AND u.del_at is NULL`);
   }
 
   // get extra info
-  const categories = await conn.query(`SELECT * FROM USER_CATEGORY WHERE user_idx = ${idx}`);
+  const topics = await conn.query(`SELECT * FROM USER_TOPIC WHERE user_idx = ${idx}`);
 
   const user: UserDto = new UserDto(foundUsers);
 
   respond(res, 200, user);
 }
 
-export async function deleteUser(conn: any, req: Request, res: Response) {
+export async function deleteUser(conn: any, req: Request, res: Response, next: NextFunction) {
   // parse
   const idx = getValidatedIdx(req);
 
@@ -158,13 +169,13 @@ export async function deleteUser(conn: any, req: Request, res: Response) {
     const result = await conn.query(`UPDATE USER SET del_at = '${toMysqlDate()}' WHERE idx = ${idx}`);
     logger.debug({ res: result }, 'DB response');
 
-    const cateResult = await conn.query(`DELETE FROM USER_CATEGORY WHERE user_idx=${idx}`);
+    const cateResult = await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx=${idx}`);
     logger.debug({ res: cateResult }, 'DB response');
 
     await conn.commit();
   } catch (e) {
     await conn.rollback()
-    throw e;
+    next(e);
   }
   respond(res, 200);
 }

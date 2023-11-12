@@ -3,7 +3,7 @@ import express, { NextFunction, Request, Response } from "express";
 import pino from 'pino';
 import { DuplicationError, NotFoundError } from "./classes/Errors";
 import globalErrorHandler from './controllers/errorController';
-import { categoryRouter } from './routers/categoryRoutes';
+import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
 const httpLogger = require('pino-http')();
 const logger = pino({ level: 'debug' });
@@ -22,7 +22,7 @@ app.all('*', (req, res, next) => {
 });
 
 // Routing
-app.use('/archon-api/v1/categories', categoryRouter)
+app.use('/archon-api/v1/topics', topicRouter)
 app.use('/archon-api/v1/users', userRouter)
 
 // Other Routes Handling

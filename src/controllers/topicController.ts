@@ -5,7 +5,7 @@ import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Err
 import { checkRequireds, getValidatedIdx, respond, toArray } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
-export async function createCategory(conn: any, req: Request, res: Response) {
+export async function createTopic(conn: any, req: Request, res: Response) {
   // parsing
   const { name, created_by: createdBy } = req.body
 
@@ -13,26 +13,26 @@ export async function createCategory(conn: any, req: Request, res: Response) {
   checkRequireds([name, createdBy], ['name', 'created_by']);
 
   // duplicated check
-  const existingNames = await conn.query(`SELECT * FROM CATEGORY where name = '${name}'`);
+  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = '${name}'`);
   if (existingNames.length > 0) {
     throw new DuplicationError('duplicated name');
   }
 
   // last order number check
   let lastOrder: number = 0;
-  const categories = await conn.query(`SELECT * FROM CATEGORY ORDER BY seq DESC`);
-  if (categories.length > 0) {
-    lastOrder = categories[0].seq;
+  const topics = await conn.query(`SELECT * FROM TOPIC ORDER BY seq DESC`);
+  if (topics.length > 0) {
+    lastOrder = topics[0].seq;
   }
 
   // DB
-  const result = await conn.query(`INSERT INTO CATEGORY (name, created_by, seq) values ('${name}',${createdBy}, ${lastOrder + 1})`);
+  const result = await conn.query(`INSERT INTO TOPIC (name, created_by, seq) values ('${name}',${createdBy}, ${lastOrder + 1})`);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
 }
 
-export async function updateCategory(conn: any, req: Request, res: Response) {
+export async function updateTopic(conn: any, req: Request, res: Response) {
   // parsing
   const { name, created_by: createdBy } = req.body
   const idx = getValidatedIdx(req);
@@ -41,49 +41,51 @@ export async function updateCategory(conn: any, req: Request, res: Response) {
   checkRequireds([name, createdBy], ['name', 'created_by']);
 
   // exist check
-  const existingCategory = await conn.query(`SELECT * FROM CATEGORY where idx = '${idx}'`);
-  if (existingCategory.length <= 0) {
-    throw new NotFoundError('category not found');
+  const existingTopic = await conn.query(`SELECT * FROM TOPIC where idx = '${idx}'`);
+  if (existingTopic.length <= 0) {
+    throw new NotFoundError('topic not found');
   }
 
   // duplicated check
-  const existingNames = await conn.query(`SELECT * FROM CATEGORY where name = '${name}'`);
+  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = '${name}'`);
   if (existingNames.length > 0) {
     throw new DuplicationError('duplicated name');
   }
 
   // DB
-  const result = await conn.query(`UPDATE CATEGORY SET name='${name}', created_by=${createdBy} WHERE idx=${idx}`);
+  const result = await conn.query(`UPDATE TOPIC SET name='${name}', created_by=${createdBy} WHERE idx=${idx}`);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
 }
 
-export async function getAllCategories(conn: any, req: Request, res: Response) {
+export async function getAllTopics(conn: any, req: Request, res: Response) {
   // DB
-  const categories = await conn.query(`SELECT name FROM CATEGORY ORDER BY seq ASC`);
+  const topics = await conn.query(`SELECT * FROM TOPIC ORDER BY seq ASC`);
 
-  const categoryList = new ListDto<any>(categories.map((category: any) => category.name), categories.length);
-  respond(res, 200, categoryList);
+  console.log(topics);
+
+  const topicList = new ListDto<any>(topics.map((topic: any) => { return { idx: topic.idx, name: topic.name, seq: topic.seq } }), topics.length);
+  respond(res, 200, topicList);
 }
 
-export async function updateCategories(conn: any, req: Request, res: Response) {
+export async function updateTopics(conn: any, req: Request, res: Response) {
   // validation
   const idxSeq = req.body?.idx_sequence ? toArray(req.body?.idx_sequence) : null;
   if (!idxSeq) {
     throw new BadRequestError('idx_sequence is required');
   }
 
-  const categories = await conn.query(`SELECT idx, seq FROM CATEGORY`)
+  const topics = await conn.query(`SELECT idx, seq FROM TOPIC`)
 
-  if (categories.length !== idxSeq.length) {
+  if (topics.length !== idxSeq.length) {
     throw new BadRequestError('check idx_sequence length')
   }
 
   try {
     await conn.beginTransaction();
     idxSeq.forEach(async (idx: number, seqNum: number) => {
-      await conn.query(`UPDATE CATEGORY SET seq = ${seqNum + 1} WHERE idx = ${idx}`);
+      await conn.query(`UPDATE TOPIC SET seq = ${seqNum + 1} WHERE idx = ${idx}`);
     })
     await conn.commit();
   } catch (e) {
@@ -94,8 +96,8 @@ export async function updateCategories(conn: any, req: Request, res: Response) {
   respond(res, 200)
 }
 
-export async function removeCategory(conn: any, req: Request, res: Response) {
+export async function removeTopic(conn: any, req: Request, res: Response) {
   const idx = getValidatedIdx(req);
-  await conn.query(`DELETE FROM CATEGORY WHERE idx=${idx}`);
+  await conn.query(`DELETE FROM TOPIC WHERE idx=${idx}`);
   respond(res, 200);
 }
