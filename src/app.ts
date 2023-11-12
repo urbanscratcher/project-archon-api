@@ -1,31 +1,41 @@
+import dotenv from 'dotenv';
 import express, { NextFunction, Request, Response } from "express";
+import pino from 'pino';
+import { DuplicationError, NotFoundError } from "./classes/Errors";
+import globalErrorHandler from './controllers/errorController';
+import { categoryRouter } from './routers/categoryRoutes';
+import { userRouter } from './routers/userRoutes';
+const httpLogger = require('pino-http')();
+const logger = pino({ level: 'debug' });
+dotenv.config({ path: '.env' })
 
+// SETTING -----------------------------------------------
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// users CRUD
-app.post("/users", (req: Request, res: Response, next: NextFunction) => {
-  // get request
-  // save in DB
-  res.status(200).send();
+// MIDDLEWARES -------------------------------------------
+// Logging all http requests
+app.all('*', (req, res, next) => {
+  httpLogger(req, res);
+  next();
 });
 
-app.get("/users", (req: Request, res: Response, next: NextFunction) => {
-  // get request
-  // save in DB
-  res.status(200).json({
-    total: 10,
-    data: {
-      id: 1,
-      avatar_url: "http://",
-    },
-  });
+// Routing
+app.use('/archon-api/v1/categories', categoryRouter)
+app.use('/archon-api/v1/users', userRouter)
+
+// Other Routes Handling
+app.all('*', (req, res, next) => {
+  next(new NotFoundError(`Can not find on this server`))
 });
 
-app.get("/", (req: Request, res: Response, next: NextFunction) => {
-  res.send("welcome!");
-});
+// Error Handling
+app.use(globalErrorHandler)
 
-const PORT = 5230;
+
+// SERVER RUN --------------------------------------------
+const PORT = 5003;
 app.listen(PORT, () => {
   console.log("app running on port...", PORT);
 });
