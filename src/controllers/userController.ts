@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
-import { areRequired, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
+import { getValidatedIdx, checkRequireds, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 
@@ -36,7 +36,6 @@ export class UserDto extends Dto {
 }
 
 
-
 export async function createUser(conn: any, req: Request, res: Response) {
   // parsing
   const { email, password, first_name: firstName, last_name: lastName } = req.body;
@@ -47,32 +46,29 @@ export async function createUser(conn: any, req: Request, res: Response) {
   const careers = req.body?.careers ? toArray(req.body?.careers) : null;
 
   // required check
-  areRequired([email, password, firstName, lastName, req.body?.is_admin], ['email', 'password', 'first_name', 'last_name', 'is_admin'])
+  checkRequireds([email, password, firstName, lastName, req.body?.is_admin], ['email', 'password', 'first_name', 'last_name', 'is_admin'])
 
   // DB
   const result = await conn.query(`INSERT INTO USER (email, password, first_name, last_name, is_admin, avatar, job_title, biography, careers, created_at) values ('${email}', '${password}', '${firstName}', '${lastName}', ${isAdmin}, ${nullableField(avatar)}, ${nullableField(jobTitle)}, ${nullableField(biography)}, ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}, '${toMysqlDate()}')`);
   logger.debug({ res: result }, 'DB response');
 
-  // respond
   respond(res, 201);
 }
 
 export async function getUsers(conn: any, req: Request, res: Response) {
+  // DB
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE del_at is NULL`);
 
+  // stringify
   const users: Array<UserDto> = foundUsers.map((user: any) => new UserDto(user))
   const userList: ListDto<UserDto> = new ListDto(users, users.length)
+
   respond(res, 200, userList);
 }
 
 export async function getUser(conn: any, req: Request, res: Response) {
-  // parsing
-  const idx = +req.params?.idx;
-
-  // required check
-  if (isNaN(idx) || idx === null || idx === undefined) {
-    throw new BadRequestError(`idx is irregular value`)
-  }
+  // parse
+  const idx = getValidatedIdx(req);
 
   // exist check
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is NULL`);
@@ -82,18 +78,12 @@ export async function getUser(conn: any, req: Request, res: Response) {
 
   const user: UserDto = new UserDto(foundUsers[0]);
 
-  // respond
   respond(res, 200, user);
 }
 
 export async function deleteUser(conn: any, req: Request, res: Response) {
-  // parsing
-  const idx = +req.params?.idx;
-
-  // required check
-  if (isNaN(idx) || idx === null || idx === undefined) {
-    throw new BadRequestError(`idx is irregular value`)
-  }
+  // parse
+  const idx = getValidatedIdx(req);
 
   // exist check
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is NULL`);
@@ -105,6 +95,5 @@ export async function deleteUser(conn: any, req: Request, res: Response) {
   const result = await conn.query(`UPDATE USER SET del_at = '${toMysqlDate()}' WHERE idx = ${idx}`);
   logger.debug({ res: result }, 'DB response');
 
-  // respond
   respond(res, 200);
 }

@@ -1,19 +1,11 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
+import { isArray, isObject, snakeCase, transform } from "lodash";
 import { BadRequestError } from "../classes/Errors";
-import _, { snakeCase, isArray, transform, isObject } from "lodash";
 
 export function toArray(str: string) {
   return JSON.parse(str.replace(/'/g, '"'));
 }
 
-
-export function areRequired([...args]: Array<any>, [...names]: Array<string>) {
-  args.forEach((arg, idx) => {
-    if (arg === null || arg === undefined) {
-      throw new BadRequestError(`${names[idx]} is required`);
-    }
-  })
-}
 
 export function toMysqlDate(date?: Date): string {
   if (!date) date = new Date();
@@ -36,9 +28,9 @@ export function nullableField(obj: any) {
 
 
 function toSnakeCase(obj: any) {
-  return _.transform(obj, (acc: any, value: any, key: any, target: any) => {
-    const camelKey = _.isArray(target) ? key : _.snakeCase(key);
-    acc[camelKey] = _.isObject(value) ? toSnakeCase(value) : value;
+  return transform(obj, (acc: any, value: any, key: any, target: any) => {
+    const camelKey = isArray(target) ? key : snakeCase(key);
+    acc[camelKey] = isObject(value) ? toSnakeCase(value) : value;
   });
 }
 
@@ -53,9 +45,20 @@ export function respond(res: Response, statusCode: number, obj?: any) {
   }
 }
 
-const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(new Date(date));
+// Check validation --------------------------
+export function checkRequireds([...args]: Array<any>, [...names]: Array<string>) {
+  args.forEach((arg, idx) => {
+    if (arg === null || arg === undefined) {
+      throw new BadRequestError(`${names[idx]} is required`);
+    }
+  })
+}
+
+export function getValidatedIdx(req: Request) {
+  const idx = +req.params?.idx;
+  if (isNaN(idx) || idx === null || idx === undefined) {
+    throw new BadRequestError(`idx is irregular value`)
+  } else {
+    return idx;
+  }
+}
