@@ -32,7 +32,6 @@ export async function createCategory(conn: any, req: Request, res: Response) {
   respond(res, 200);
 }
 
-
 export async function updateCategory(conn: any, req: Request, res: Response) {
   // parsing
   const { name, created_by: createdBy } = req.body
