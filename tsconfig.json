@@ -7,5 +7,6 @@
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,    
+    "typeRoots":["./src/customTypes","./node_modules/@types"]
   }
 }

@@ -1,11 +1,12 @@
-import { NextFunction, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import pino from 'pino';
 import { ListDto } from '../classes/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
+import { asyncHandledDB } from '../utils/connectDB';
 import { checkRequireds, getValidatedIdx, respond, toArray } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
-export async function createTopic(conn: any, req: Request, res: Response) {
+export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parsing
   const { name, created_by: createdBy } = req.body
 
@@ -30,9 +31,9 @@ export async function createTopic(conn: any, req: Request, res: Response) {
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
-}
+})
 
-export async function updateTopic(conn: any, req: Request, res: Response) {
+export const updateTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parsing
   const { name, created_by: createdBy } = req.body
   const idx = getValidatedIdx(req);
@@ -57,9 +58,9 @@ export async function updateTopic(conn: any, req: Request, res: Response) {
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
-}
+})
 
-export async function getAllTopics(conn: any, req: Request, res: Response) {
+export const getAllTopics = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // DB
   const topics = await conn.query(`
   SELECT
@@ -79,9 +80,9 @@ ORDER BY t.seq ASC
 
   const topicList = new ListDto<any>(topics.map((topic: any) => { return { idx: topic.idx, name: topic.name, seq: topic.seq, totalInsights: Number(topic.total_insights) } }), topics.length);
   respond(res, 200, topicList);
-}
+})
 
-export async function updateTopics(conn: any, req: Request, res: Response) {
+export const updateTopics = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // validation
   const idxSeq = req.body?.idx_sequence ? toArray(req.body?.idx_sequence) : null;
   if (!idxSeq) {
@@ -106,10 +107,10 @@ export async function updateTopics(conn: any, req: Request, res: Response) {
   }
 
   respond(res, 200)
-}
+})
 
-export async function removeTopic(conn: any, req: Request, res: Response) {
+export const removeTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = getValidatedIdx(req);
   await conn.query(`DELETE FROM TOPIC WHERE idx=${idx}`);
   respond(res, 200);
-}
+})

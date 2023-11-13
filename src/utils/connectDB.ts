@@ -20,28 +20,26 @@ const pool = mariadb.createPool({
   connectionLimit: 5
 });
 
-async function catchAsync(req: Request, res: Response, next: NextFunction, fn: Function) {
-  try {
-    await fn(req, res, next);
-  } catch (e) {
-    next(e)
-  }
+export const asyncHandled = (fn: Function) => {
+  return (async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await fn(req, res, next);
+    } catch (e) {
+      next(e)
+    }
+  })
 }
 
-export const asyncHandled = (fn: Function) => { return (req: Request, res: Response, next: NextFunction) => catchAsync(req, res, next, fn) }
-
-
-
-async function catchAsyncDB(req: Request, res: Response, next: NextFunction, fn: Function) {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    await fn(conn, req, res, next);
-  } catch (e) {
-    next(e)
-  } finally {
-    conn && await conn?.release();
-  }
+export const asyncHandledDB = (fn: Function) => {
+  return (async (req: Request, res: Response, next: NextFunction) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      await fn(conn, req, res, next);
+    } catch (e) {
+      next(e)
+    } finally {
+      conn && await conn?.release();
+    }
+  })
 }
-
-export const asyncHandledDB = (fn: Function) => { return (req: Request, res: Response, next: NextFunction) => catchAsyncDB(req, res, next, fn) }

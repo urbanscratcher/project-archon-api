@@ -61,6 +61,15 @@ export class UnprocessableError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  type: string;
+
+  constructor(message: string) {
+    super(message, 403)
+    this.type = 'Forbidden(Unauthorized)';
+  }
+}
+
 
 export class InternalError extends AppError {
   type: string;

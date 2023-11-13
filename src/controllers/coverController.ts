@@ -2,13 +2,14 @@ import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { ListDto } from '../classes/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
-import { checkRequireds, getValidatedIdx, respond, toArray, toMysqlDate } from '../utils/helper';
+import { checkRequireds, getValidatedIdx, respond, toMysqlDate } from '../utils/helper';
+import { asyncHandledDB } from './../utils/connectDB';
 const logger = pino({ level: 'debug' });
 
 const BASIC_COVERS_LIMIT = 3;
 
 
-export async function createCover(conn: any, req: Request, res: Response) {
+export const createCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const { insight_idx: insightIdx, created_by: createdBy } = req.body;
 
   checkRequireds([insightIdx, createdBy], ['insight_idx', 'created_by']);
@@ -38,10 +39,10 @@ export async function createCover(conn: any, req: Request, res: Response) {
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
-}
+})
 
 
-export async function updateCover(conn: any, req: Request, res: Response, next: NextFunction) {
+export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ${idx}`);
@@ -74,10 +75,9 @@ export async function updateCover(conn: any, req: Request, res: Response, next: 
     await conn.rollback();
     next(e);
   }
-}
+})
 
-
-export async function removeCover(conn: any, req: Request, res: Response) {
+export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = getValidatedIdx(req);
 
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ${idx}`);
@@ -93,10 +93,9 @@ export async function removeCover(conn: any, req: Request, res: Response) {
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
-}
+})
 
-
-export async function getAllCovers(conn: any, req: Request, res: Response) {
+export const getAllCovers = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const covers = await conn.query(`
   SELECT
     c.idx as idx,
@@ -133,5 +132,5 @@ export async function getAllCovers(conn: any, req: Request, res: Response) {
   const coverList = new ListDto<any>(data, data.length);
 
   respond(res, 200, coverList)
-}
+})
 

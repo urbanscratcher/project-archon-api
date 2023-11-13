@@ -1,14 +1,12 @@
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
-import pino from 'pino';
-import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError } from '../classes/Errors';
-import { createTokens, verifyAccessToken } from '../utils/manageJwt';
+import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnauthorizedError } from '../classes/Errors';
+import { asyncHandledDB } from '../utils/connectDB';
 import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, respond } from '../utils/helper';
-const logger = pino({ level: 'debug' });
+import { createTokens, verifyAccessToken } from '../utils/manageJwt';
 
-export async function verifyEmail(conn: any, req: Request, res: Response) {
+export const verifyEmail = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
   const email = req.body?.email;
   if (!email) {
@@ -21,9 +19,9 @@ export async function verifyEmail(conn: any, req: Request, res: Response) {
   }
 
   respond(res, 201)
-}
+})
 
-export async function signIn(conn: any, req: Request, res: Response, next: NextFunction) {
+export const signIn = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // parse
   const { email, password } = req.body;
 
@@ -54,9 +52,9 @@ export async function signIn(conn: any, req: Request, res: Response, next: NextF
   }
 
   respond(res, 201, createTokens({ idx: user.idx }))
-}
+})
 
-export async function protect(conn: any, req: Request, res: Response, next: NextFunction) {
+export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // parse
   const authorization = req.headers?.authorization;
 
@@ -73,20 +71,37 @@ export async function protect(conn: any, req: Request, res: Response, next: Next
 
   // verify tokens
   const decoded: any = await verifyAccessToken(token);
-  console.log(decoded);
 
   // user exists check
   const idx = decoded?.idx;
-  console.log(idx);
   const users = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is null`)
-
   if (users.length <= 0) {
     throw new UnauthenticatedError('user not exists')
   }
-
   const user = users[0];
 
   // password changed check
+  const passwordUpdatedAt = user?.password_updated_at;
 
+  if (passwordUpdatedAt) {
+    const updatedAt: any = (new Date(passwordUpdatedAt)).getTime() / 1000
+    if (decoded.iat < updatedAt) {
+      throw new UnauthenticatedError('User recently changed password. Signin again.')
+    }
+  }
+
+  // grant access to protected route
+  req.userIdx = idx;
+  req.userRole = user.role;
   next()
+})
+
+export const authorize = (...roles: any[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const userRole = req.userRole;
+    if (!roles.includes(userRole)) {
+      throw new UnauthorizedError('user has no permission')
+    }
+    next();
+  }
 }

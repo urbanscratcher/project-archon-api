@@ -1,17 +1,17 @@
 import express, { Router } from 'express';
+import { authenticate } from '../controllers/authController';
 import { createUser, deleteUser, getUser, getUsers, updateUser } from '../controllers/userController';
-import { asyncHandledDB } from '../utils/connectDB';
 
 export const userRouter: Router = express.Router();
 
 userRouter
   .route('/')
-  .post(asyncHandledDB(createUser))
-  .get(asyncHandledDB(getUsers))
+  .post(createUser)
+  .get(getUsers)
 
 userRouter
   .route('/:idx')
-  .get(asyncHandledDB(getUser))
-  .patch(asyncHandledDB(updateUser))
-  .delete(asyncHandledDB(deleteUser))
+  .get(getUser)
+  .patch(authenticate, updateUser)
+  .delete(authenticate, deleteUser)
 

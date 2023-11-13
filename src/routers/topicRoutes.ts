@@ -1,17 +1,28 @@
 import express, { Router } from 'express';
+import { authenticate, authorize } from '../controllers/authController';
 import { createTopic, getAllTopics, removeTopic, updateTopic, updateTopics } from '../controllers/topicController';
-import { asyncHandledDB } from '../utils/connectDB';
+import { ROLE } from '../controllers/userController';
 
 export const topicRouter: Router = express.Router();
 
 topicRouter
   .route('/')
-  .post(asyncHandledDB(createTopic))
-  .get(asyncHandledDB(getAllTopics))
-  .put(asyncHandledDB(updateTopics))
+  .post(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.EDITOR),
+    createTopic)
+  .get(getAllTopics)
+  .put(authenticate, updateTopics)
 
 topicRouter
   .route('/:idx')
-  .delete(asyncHandledDB(removeTopic))
-  .patch(asyncHandledDB(updateTopic))
+  .delete(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.EDITOR),
+    removeTopic)
+  .patch(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.EDITOR),
+    updateTopic)
+
 

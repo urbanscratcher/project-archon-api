@@ -1,18 +1,26 @@
-import { asyncHandled } from './../utils/connectDB';
 import express, { Router } from 'express';
+import { authenticate, authorize } from '../controllers/authController';
 import { createInsight, deleteInsight, getInsight, getInsights, updateInsight } from '../controllers/insightController';
-import { asyncHandledDB } from '../utils/connectDB';
-import { protect } from '../controllers/authController';
+import { ROLE } from '../controllers/userController';
 
 export const insightRouter: Router = express.Router();
 
 insightRouter
   .route('/')
-  .post(asyncHandledDB(protect), asyncHandledDB(createInsight))
-  .get(asyncHandledDB(protect), asyncHandledDB(getInsights))
+  .post(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.WRITER),
+    createInsight)
+  .get(getInsights)
 
 insightRouter
   .route('/:idx')
-  .get(asyncHandledDB(getInsight))
-  .patch(asyncHandledDB(updateInsight))
-  .delete(asyncHandledDB(deleteInsight))
+  .get(getInsight)
+  .patch(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.WRITER),
+    updateInsight)
+  .delete(
+    authenticate,
+    authorize(ROLE.ADMIN, ROLE.WRITER),
+    deleteInsight)

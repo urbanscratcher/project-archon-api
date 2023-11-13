@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
 import { NotFoundError } from "../classes/Errors";
+import { asyncHandledDB } from '../utils/connectDB';
 import { checkRequireds, getValidatedIdx, makeUpdateSentence, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
@@ -48,9 +49,7 @@ class InsightDto extends Dto {
   }
 }
 
-
-
-export async function createInsight(conn: any, req: Request, res: Response) {
+export const createInsight = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const { title, thumbnail, content, summary, topic_idx: topicIdx, created_by: createdBy } = req.body;
 
   checkRequireds([title, thumbnail, content, summary, topicIdx, topicIdx], ["title", "thumbnail", "content", "summary", "topic_idx", "created_by"]);
@@ -68,9 +67,9 @@ export async function createInsight(conn: any, req: Request, res: Response) {
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
-}
+})
 
-export async function getInsights(conn: any, req: Request, res: Response) {
+export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
   const offset = req.query?.offset ? +req.query?.offset : 0;
   const limit = req.query?.limit ? +req.query?.limit : BASIC_INSIGHTS_LIMIT;
@@ -119,9 +118,9 @@ export async function getInsights(conn: any, req: Request, res: Response) {
   const insightList = new ListDto<InsightDto>(data, total, offset, limit);
 
   respond(res, 200, insightList)
-}
+})
 
-export async function getInsight(conn: any, req: Request, res: Response) {
+export const getInsight = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = getValidatedIdx(req);
 
   const foundInsights = await conn.query(`SELECT
@@ -159,9 +158,9 @@ AND i.del_at is null`);
 
 
   respond(res, 200, insight)
-}
+})
 
-export async function deleteInsight(conn: any, req: Request, res: Response, next: NextFunction) {
+export const deleteInsight = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
   const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ${idx} del_at is null`);
@@ -177,9 +176,9 @@ export async function deleteInsight(conn: any, req: Request, res: Response, next
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200)
-}
+})
 
-export async function updateInsight(conn: any, req: Request, res: Response, next: NextFunction) {
+export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
   // insight exist check
@@ -210,4 +209,4 @@ export async function updateInsight(conn: any, req: Request, res: Response, next
   `)
 
   respond(res, 200)
-}
+})

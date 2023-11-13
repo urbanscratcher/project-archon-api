@@ -6,7 +6,15 @@ import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError,
 import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, getValidatedIdx, makeUpdateSentence, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
 import { createTokens } from '../utils/manageJwt';
+import { asyncHandledDB } from './../utils/connectDB';
 const logger = pino({ level: 'debug' });
+
+export enum ROLE {
+  ADMIN = 'admin',
+  EDITOR = 'editor',
+  WRITER = 'writer',
+  USER = 'user'
+}
 
 class UserDto extends Dto {
   idx: number;
@@ -14,7 +22,7 @@ class UserDto extends Dto {
   password: string;
   firstName: string;
   lastName: string;
-  isAdmin: boolean;
+  role: ROLE;
   avatar?: string | undefined;
   jobTitle?: string | undefined;
   biography?: string | undefined;
@@ -29,7 +37,7 @@ class UserDto extends Dto {
     this.password = obj[0].password;
     this.firstName = obj[0].first_name;
     this.lastName = obj[0].last_name;
-    this.isAdmin = obj[0].is_admin === 1 ? true : false;
+    this.role = obj[0].role;
     this.avatar = obj[0].avatar ?? undefined;
     this.jobTitle = obj[0].job_title ?? undefined;
     this.biography = obj[0].biography ?? undefined;
@@ -42,15 +50,14 @@ class UserDto extends Dto {
         seq: o.topic_seq
       }
     }) : undefined;
-
   }
 }
 
-export async function createUser(conn: any, req: Request, res: Response, next: NextFunction) {
+export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
 
   // parsing
   const { email, password, first_name: firstName, last_name: lastName, password_confirm: passwordConfirm } = req.body;
-  const isAdmin = false;
+  const role: ROLE | null = req.body?.role || null;
   const avatar = req.body?.avatar || null;
   const jobTitle = req.body?.job_title || null;
   const biography = req.body?.biography || null;
@@ -60,6 +67,11 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
 
   // required check
   checkRequireds([email, password, passwordConfirm, firstName, lastName], ['email', 'password', 'password_confirm', 'first_name', 'last_name'])
+
+  // role check
+  if (role && !(role === ROLE.USER || role === ROLE.ADMIN || role === ROLE.EDITOR || role === ROLE.WRITER)) {
+    throw new BadRequestError('role is not valid')
+  }
 
   // password confirm check
   if (password !== passwordConfirm) {
@@ -76,8 +88,10 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
   let decryptedPassword = '';
   try {
     decryptedPassword = decryptAES256(password);
+
+    console.log(decryptedPassword);
   } catch (e: any) {
-    e.message = 'encryption error'
+    e.message = 'decryption error'
     next(e)
   }
 
@@ -94,7 +108,7 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
     , password = '${hashedPassword}'
     , first_name = '${firstName}'
     , last_name = '${lastName}'
-    , is_admin = ${isAdmin}
+    , role = '${role ?? ROLE.USER}'
     , avatar = ${nullableField(avatar)}
     , job_title = ${nullableField(jobTitle)}
     , biography = ${nullableField(biography)}
@@ -125,9 +139,9 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
     await conn.rollback();
     next(e);
   }
-}
+})
 
-export async function getUsers(conn: any, req: Request, res: Response) {
+export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // DB
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE del_at is NULL`);
 
@@ -151,9 +165,9 @@ export async function getUsers(conn: any, req: Request, res: Response) {
   const userList: ListDto<any> = new ListDto(usersWithExtraInfo, usersWithExtraInfo.length)
 
   respond(res, 200, userList);
-}
+})
 
-export async function getUser(conn: any, req: Request, res: Response) {
+export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parse
   const idx = getValidatedIdx(req);
 
@@ -164,7 +178,7 @@ export async function getUser(conn: any, req: Request, res: Response) {
 	u.password as password,
 	u.first_name as first_name,
 	u.last_name as last_name,
-	u.is_admin as is_admin,
+	u.role as role,
 	u.avatar as avatar,
 	u.job_title as job_title,
 	u.biography as biography,
@@ -188,9 +202,9 @@ AND u.del_at is NULL`);
   const user: UserDto = new UserDto(foundUsers);
 
   respond(res, 200, user);
-}
+})
 
-export async function deleteUser(conn: any, req: Request, res: Response, next: NextFunction) {
+export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // parse
   const idx = getValidatedIdx(req);
 
@@ -215,9 +229,9 @@ export async function deleteUser(conn: any, req: Request, res: Response, next: N
     next(e);
   }
   respond(res, 200);
-}
+})
 
-export async function updateUser(conn: any, req: Request, res: Response, next: NextFunction) {
+export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
   // exist check
@@ -277,6 +291,7 @@ export async function updateUser(conn: any, req: Request, res: Response, next: N
 
 
   const updateUser = async () => {
+    const nowStr = toMysqlDate();
     await conn.query(`
     UPDATE USER SET
       ${makeUpdateSentence(firstName, 'first_name')}
@@ -286,7 +301,8 @@ export async function updateUser(conn: any, req: Request, res: Response, next: N
       ${makeUpdateSentence(biography, 'biography')}
       ${makeUpdateSentence(hashedPassword, 'password')}
       ${makeUpdateSentence(careers, 'careers')}
-      updated_at='${toMysqlDate()}'   
+      ${hashedPassword ? 'password_updated_at=' + "'" + nowStr + "'" + ',' : ''}
+      updated_at='${nowStr}'
     WHERE idx = ${idx}
     `)
   }
@@ -321,4 +337,4 @@ export async function updateUser(conn: any, req: Request, res: Response, next: N
 
   respond(res, 200)
 
-}
+})
