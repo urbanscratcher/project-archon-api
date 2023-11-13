@@ -1,8 +1,10 @@
 import dotenv from 'dotenv';
-import express, { NextFunction, Request, Response } from "express";
+import express from "express";
 import pino from 'pino';
-import { DuplicationError, NotFoundError } from "./classes/Errors";
+import { NotFoundError } from "./classes/Errors";
 import globalErrorHandler from './controllers/errorController';
+import { coverRouter } from './routers/coverRoutes';
+import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
 const httpLogger = require('pino-http')();
@@ -24,6 +26,8 @@ app.all('*', (req, res, next) => {
 // Routing
 app.use('/archon-api/v1/topics', topicRouter)
 app.use('/archon-api/v1/users', userRouter)
+app.use('/archon-api/v1/insights', insightRouter)
+app.use('/archon-api/v1/covers', coverRouter)
 
 // Other Routes Handling
 app.all('*', (req, res, next) => {

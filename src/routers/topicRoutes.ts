@@ -1,18 +1,17 @@
 import express, { Router } from 'express';
-import { createTopic, getAllTopics, removeTopic, updateTopics, updateTopic } from '../controllers/topicController';
-import { connectDB } from '../utils/connectDB';
-
+import { createTopic, getAllTopics, removeTopic, updateTopic, updateTopics } from '../controllers/topicController';
+import { execute } from '../utils/connectDB';
 
 export const topicRouter: Router = express.Router();
 
 topicRouter
   .route('/')
-  .post((req, res, next) => connectDB(req, res, next, createTopic))
-  .get((req, res, next) => connectDB(req, res, next, getAllTopics))
-  .put((req, res, next) => connectDB(req, res, next, updateTopics))
+  .post(execute(createTopic))
+  .get(execute(getAllTopics))
+  .put(execute(updateTopics))
 
 topicRouter
   .route('/:idx')
-  .delete((req, res, next) => connectDB(req, res, next, removeTopic))
-  .patch((req, res, next) => connectDB(req, res, next, updateTopic))
+  .delete(execute(removeTopic))
+  .patch(execute(updateTopic))
 

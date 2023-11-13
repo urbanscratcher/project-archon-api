@@ -63,14 +63,25 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
   // DB
   try {
     await conn.beginTransaction();
-    const result = await conn.query(`INSERT INTO USER (email, password, first_name, last_name, is_admin, avatar, job_title, biography, careers, created_at) values ('${email}', '${password}', '${firstName}', '${lastName}', ${isAdmin}, ${nullableField(avatar)}, ${nullableField(jobTitle)}, ${nullableField(biography)}, ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}, '${toMysqlDate()}')`);
+    const result = await conn.query(`
+    INSERT INTO USER
+    SET
+    email = '${email}'
+    , password = '${password}'
+    , first_name = '${firstName}'
+    , last_name = '${lastName}'
+    , is_admin = ${isAdmin}
+    , avatar = ${nullableField(avatar)}
+    , job_title = ${nullableField(jobTitle)}
+    , biography = ${nullableField(biography)}
+    , careers = ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}
+    , created_at = '${toMysqlDate()}'`);
     logger.debug({ res: result }, 'DB response');
 
     if (topics) {
       for (const topicIdx of topics) {
         const topic = await conn.query(`SELECT * FROM TOPIC WHERE idx = ${topicIdx}`);
 
-        console.log(topic);
         if (topic.length <= 0) {
           throw new NotFoundError(`topic not exist`);
         }

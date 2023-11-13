@@ -3,12 +3,14 @@ export class Dto {
 
 export class ListDto<T>{
   total: number;
-  seq?: number | undefined;
+  offset?: number | undefined;
+  limit?: number | undefined;
   data: Array<T>;
 
-  constructor(data: Array<T>, total: number, seq?: number) {
+  constructor(data: Array<T>, total: number, offset?: number, limit?: number) {
     this.total = total;
-    this.seq = seq === undefined || seq === null ? undefined : seq;
+    this.offset = offset === undefined || offset === null ? undefined : offset;
+    this.limit = limit === undefined || limit === null ? undefined : limit;
     this.data = data;
   }
 }

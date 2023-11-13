@@ -29,7 +29,7 @@ export async function createTopic(conn: any, req: Request, res: Response) {
   const result = await conn.query(`INSERT INTO TOPIC (name, created_by, seq) values ('${name}',${createdBy}, ${lastOrder + 1})`);
   logger.debug({ res: result }, 'DB response');
 
-  respond(res, 200);
+  respond(res, 201);
 }
 
 export async function updateTopic(conn: any, req: Request, res: Response) {
@@ -61,11 +61,23 @@ export async function updateTopic(conn: any, req: Request, res: Response) {
 
 export async function getAllTopics(conn: any, req: Request, res: Response) {
   // DB
-  const topics = await conn.query(`SELECT * FROM TOPIC ORDER BY seq ASC`);
+  const topics = await conn.query(`
+  SELECT
+    t.idx as idx,
+    t.name as name,
+    t.seq as seq,
+    t.created_by as created_by,
+    IFNULL(ti.total_insights,0) as total_insights
+  FROM TOPIC t
+  LEFT JOIN (SELECT 
+      i.idx as topic_idx,
+      count(*) as total_insights
+    FROM INSIGHT i
+    GROUP BY i.topic_idx) ti ON ti.topic_idx = t.idx
+ORDER BY t.seq ASC
+`);
 
-  console.log(topics);
-
-  const topicList = new ListDto<any>(topics.map((topic: any) => { return { idx: topic.idx, name: topic.name, seq: topic.seq } }), topics.length);
+  const topicList = new ListDto<any>(topics.map((topic: any) => { return { idx: topic.idx, name: topic.name, seq: topic.seq, totalInsights: Number(topic.total_insights) } }), topics.length);
   respond(res, 200, topicList);
 }
 

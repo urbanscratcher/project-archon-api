@@ -34,3 +34,6 @@ export async function connectDB(req: Request, res: Response, next: NextFunction,
     conn && await conn?.release();
   }
 }
+
+export const execute = (fn: Function) => { return (req: Request, res: Response, next: NextFunction) => connectDB(req, res, next, fn) }
+

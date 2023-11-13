@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { isArray, isObject, snakeCase, transform } from "lodash";
 import { BadRequestError } from "../classes/Errors";
 
+// Parsing ---------------------------------
 export function toArray(str: string) {
   return JSON.parse(str.replace(/'/g, '"'));
 }
@@ -34,14 +35,11 @@ function toSnakeCase(obj: any) {
   });
 }
 
-export function respond(res: Response, statusCode: number, obj?: any) {
-  res.status(statusCode);
-  if (obj) {
-    const newObj = toSnakeCase(obj);
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(newObj))
+export function parseOrderQuery(str: string) {
+  if (str.slice(0, 1) === '-') {
+    return `${str.slice(1, str.length)} DESC`;
   } else {
-    res.send();
+    return `${str} ASC`;
   }
 }
 
@@ -61,4 +59,27 @@ export function getValidatedIdx(req: Request) {
   } else {
     return idx;
   }
+}
+
+// Respond ------------------------------------
+export function respond(res: Response, statusCode: number, obj?: any) {
+  res.status(statusCode);
+  if (obj) {
+    const newObj = toSnakeCase(obj);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(newObj))
+  } else {
+    res.send();
+  }
+}
+
+// time to read ------------------------------------
+// [REFERENCE] https://infusion.media/content-marketing/how-to-calculate-reading-time/#:~:text=Here's%20the%20formula%3A,the%20decimal%20is%20your%20minutes.
+export function calculateTtr(text: string) {
+  const words = text.split(" ");
+  const wordCount = words.length;
+  const ttrRaw = wordCount / 200;
+  const min = Math.floor(ttrRaw);
+  const sec = Math.round((ttrRaw - min) * 60);
+  return min * 60 + sec;
 }
