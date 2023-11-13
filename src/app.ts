@@ -7,9 +7,19 @@ import { coverRouter } from './routers/coverRoutes';
 import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
+import { authRouter } from './routers/authRoutes';
 const httpLogger = require('pino-http')();
 const logger = pino({ level: 'debug' });
 dotenv.config({ path: '.env' })
+
+// Uncaught Exception Handling (Synchronous)
+process.on('uncaughtException', (err: Error) => {
+  logger.error(err, 'uncaught exception errors occurred');
+  logger.error({}, 'Shutting down...');
+  process.exit(1);
+})
+
+
 
 // SETTING -----------------------------------------------
 const app = express();
@@ -28,6 +38,7 @@ app.use('/archon-api/v1/topics', topicRouter)
 app.use('/archon-api/v1/users', userRouter)
 app.use('/archon-api/v1/insights', insightRouter)
 app.use('/archon-api/v1/covers', coverRouter)
+app.use('/archon-api/v1/auth', authRouter)
 
 // Other Routes Handling
 app.all('*', (req, res, next) => {
@@ -40,6 +51,18 @@ app.use(globalErrorHandler)
 
 // SERVER RUN --------------------------------------------
 const PORT = 5003;
-app.listen(PORT, () => {
-  console.log("app running on port...", PORT);
+const server = app.listen(PORT, () => {
+  logger.info({}, `App running on port... ${PORT}`)
 });
+
+
+
+// Unexpected Rejection Handling (Asynchronous) ----------
+process.on('unhandledRejection', (err: Error) => {
+  logger.error(err, 'unhandled rejection errors occurred');
+  logger.error({}, 'Shutting down...');
+  server.close(() => {
+    process.exit(1);
+  })
+})
+

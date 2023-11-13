@@ -1,10 +1,12 @@
+import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
-import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
+import { DuplicationError, NotFoundError, UnauthenticatedError } from "../classes/Errors";
+import { createTokens } from '../utils/createJwt';
+import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, getValidatedIdx, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
-
 
 class UserDto extends Dto {
   idx: number;
@@ -44,12 +46,11 @@ class UserDto extends Dto {
   }
 }
 
-
-
 export async function createUser(conn: any, req: Request, res: Response, next: NextFunction) {
+
   // parsing
-  const { email, password, first_name: firstName, last_name: lastName } = req.body;
-  const isAdmin = Boolean(req.body.is_admin === 'true');
+  const { email, password, first_name: firstName, last_name: lastName, password_confirm: passwordConfirm } = req.body;
+  const isAdmin = false;
   const avatar = req.body?.avatar || null;
   const jobTitle = req.body?.job_title || null;
   const biography = req.body?.biography || null;
@@ -58,16 +59,40 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
 
 
   // required check
-  checkRequireds([email, password, firstName, lastName, req.body?.is_admin], ['email', 'password', 'first_name', 'last_name', 'is_admin'])
+  checkRequireds([email, password, passwordConfirm, firstName, lastName], ['email', 'password', 'password_confirm', 'first_name', 'last_name'])
 
-  // DB
+  // password confirm check
+  if (password !== passwordConfirm) {
+    throw new UnauthenticatedError('password is not matched')
+  }
+
+  // email duplication check
+  const emails = await conn.query(`SELECT * FROM USER WHERE email = '${email}'`);
+  if (emails.length > 0) {
+    throw new DuplicationError('email already exists')
+  }
+
+  // AES256 decryption
+  let decryptedPassword = '';
+  try {
+    const secret: string = process.env.AES_SECRET ?? '';
+    decryptedPassword = decryptAES256(secret, password);
+  } catch (e: any) {
+    e.message = 'encryption error'
+    next(e)
+  }
+
+  // bcrypt password
+  const hashedPassword = await bcrypt.hash(decryptedPassword, 12);
+
+  // DB insertion & jwt & respond, otherwise rollback
   try {
     await conn.beginTransaction();
     const result = await conn.query(`
     INSERT INTO USER
     SET
     email = '${email}'
-    , password = '${password}'
+    , password = '${hashedPassword}'
     , first_name = '${firstName}'
     , last_name = '${lastName}'
     , is_admin = ${isAdmin}
@@ -77,6 +102,7 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
     , careers = ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}
     , created_at = '${toMysqlDate()}'`);
     logger.debug({ res: result }, 'DB response');
+    const insertedIdx = Number(result.insertId);
 
     if (topics) {
       for (const topicIdx of topics) {
@@ -88,13 +114,14 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
       }
 
       topics.forEach(async (topicIdx: number) => {
-        const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (${Number(result.insertId)}, ${topicIdx})`);
+        const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (${insertedIdx}, ${topicIdx})`);
         logger.debug({ res: cateResult }, 'DB response');
       })
     }
-
     await conn.commit();
-    respond(res, 201);
+
+    // create jwt tokens
+    respond(res, 201, createTokens({ idx: insertedIdx }));
   } catch (e) {
     await conn.rollback();
     next(e);

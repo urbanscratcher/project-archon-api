@@ -1,8 +1,6 @@
 import dotenv from 'dotenv';
 import { NextFunction, Request, Response } from 'express';
 import mariadb from 'mariadb';
-import pino from 'pino';
-const logger = pino({ level: 'debug' });
 dotenv.config({ path: '.env' })
 
 // config ----------------------------

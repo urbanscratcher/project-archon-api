@@ -42,3 +42,31 @@ export class BadRequestError extends AppError {
     this.type = 'BadRequest';
   }
 }
+
+export class UnauthenticatedError extends AppError {
+  type: string;
+
+  constructor(message: string) {
+    super(message, 401)
+    this.type = 'Unauthenticated(Unauthorized)';
+  }
+}
+
+export class UnprocessableError extends AppError {
+  type: string;
+
+  constructor(message: string) {
+    super(message, 422)
+    this.type = 'Unprocessable';
+  }
+}
+
+
+export class InternalError extends AppError {
+  type: string;
+
+  constructor(message: string) {
+    super(message, 500)
+    this.type = 'InternalError';
+  }
+}

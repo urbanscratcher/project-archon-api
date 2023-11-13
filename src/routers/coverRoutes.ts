@@ -2,7 +2,6 @@ import express, { Router } from 'express';
 import { createCover, getAllCovers, removeCover, updateCover } from '../controllers/coverController';
 import { execute } from '../utils/connectDB';
 
-
 export const coverRouter: Router = express.Router();
 
 coverRouter
