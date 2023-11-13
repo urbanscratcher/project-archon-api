@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
-import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
-import { calculateTtr, checkRequireds, getValidatedIdx, nullableField, parseOrderQuery, respond, toArray, toMysqlDate } from '../utils/helper';
-import { clearLine } from 'readline';
+import { NotFoundError } from "../classes/Errors";
+import { checkRequireds, getValidatedIdx, makeUpdateSentence, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 const BASIC_INSIGHTS_LIMIT = 3;
@@ -183,12 +182,13 @@ export async function deleteInsight(conn: any, req: Request, res: Response, next
 export async function updateInsight(conn: any, req: Request, res: Response, next: NextFunction) {
   const idx = getValidatedIdx(req);
 
+  // insight exist check
   const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ${idx} AND del_at is null`);
-
   if (foundInsights.length <= 0) {
     throw new NotFoundError('insight not found')
   }
 
+  // parse
   const title = req.body?.title ?? null;
   const thumbnail = req.body?.thumbnail ?? null;
   const content = req.body?.content ?? null;
@@ -196,22 +196,15 @@ export async function updateInsight(conn: any, req: Request, res: Response, next
   const topicIdx = req.body?.topic_idx ?? null;
   const editedBy = req.body?.edited_by ?? null;
 
-  const makeSentence = (obj: any, name: string) => {
-    if (obj) {
-      return `${name}=${typeof obj === 'string' ? "'" + obj + "'" : obj},`
-    } else {
-      return '';
-    }
-  }
 
   await conn.query(`
   UPDATE INSIGHT SET
-    ${makeSentence(title, 'title')}
-    ${makeSentence(thumbnail, 'thumbnail')}
-    ${makeSentence(content, 'content')}
-    ${makeSentence(summary, 'summary')}
-    ${makeSentence(topicIdx, 'topic_idx')}
-    ${makeSentence(editedBy, 'edited_by')}
+    ${makeUpdateSentence(title, 'title')}
+    ${makeUpdateSentence(thumbnail, 'thumbnail')}
+    ${makeUpdateSentence(content, 'content')}
+    ${makeUpdateSentence(summary, 'summary')}
+    ${makeUpdateSentence(topicIdx, 'topic_idx')}
+    ${makeUpdateSentence(editedBy, 'edited_by')}
     edited_at='${toMysqlDate()}'   
   WHERE idx = ${idx}
   `)

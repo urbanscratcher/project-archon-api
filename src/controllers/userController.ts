@@ -2,10 +2,10 @@ import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
-import { DuplicationError, NotFoundError, UnauthenticatedError } from "../classes/Errors";
-import { createTokens } from '../utils/createJwt';
+import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../classes/Errors";
 import { decryptAES256 } from '../utils/crypto';
-import { checkRequireds, getValidatedIdx, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
+import { checkRequireds, getValidatedIdx, makeUpdateSentence, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
+import { createTokens } from '../utils/manageJwt';
 const logger = pino({ level: 'debug' });
 
 class UserDto extends Dto {
@@ -75,8 +75,7 @@ export async function createUser(conn: any, req: Request, res: Response, next: N
   // AES256 decryption
   let decryptedPassword = '';
   try {
-    const secret: string = process.env.AES_SECRET ?? '';
-    decryptedPassword = decryptAES256(secret, password);
+    decryptedPassword = decryptAES256(password);
   } catch (e: any) {
     e.message = 'encryption error'
     next(e)
@@ -139,12 +138,12 @@ export async function getUsers(conn: any, req: Request, res: Response) {
   for (let u of users) {
     const foundExtraInfo = await conn.query(`
     SELECT
-    c.idx as idx,
-    c.name as name,
-    c.seq as seq
-  FROM USER_TOPIC uc
-  LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
-  WHERE user_idx = ${u.idx}`);
+      c.idx as idx,
+      c.name as name,
+      c.seq as seq
+    FROM USER_TOPIC uc
+    LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
+    WHERE user_idx = ${u.idx}`);
     u.topics = foundExtraInfo.length > 0 ? foundExtraInfo : undefined;
     usersWithExtraInfo.push(u);
   }
@@ -216,4 +215,110 @@ export async function deleteUser(conn: any, req: Request, res: Response, next: N
     next(e);
   }
   respond(res, 200);
+}
+
+export async function updateUser(conn: any, req: Request, res: Response, next: NextFunction) {
+  const idx = getValidatedIdx(req);
+
+  // exist check
+  const users = await conn.query(`SELECT * FROM USER WHERE idx=${idx} AND del_at is null`);
+  if (users.length <= 0) {
+    throw new NotFoundError('user not found')
+  }
+  const user = users[0];
+
+  // parse
+  const pastPassword = req.body?.past_password ?? null;
+  const newPassword = req.body?.password ?? null;
+  const newPasswordConfirm = req.body?.password_confirm ?? null;
+  const firstName = req.body?.first_name ?? null;
+  const lastName = req.body?.last_name ?? null;
+  const avatar = req.body?.avatar ?? null;
+  const jobTitle = req.body?.job_title ?? null;
+  const biography = req.body?.biography ?? null;
+  const careers = req.body?.careers ? JSON.stringify(toArray(req.body.careers)) : null;
+  const topics = req.body?.topics ? toArray(req.body.topics) : null;
+
+  // password required check
+  if ((pastPassword || newPassword || newPasswordConfirm) && !(pastPassword && newPassword && newPasswordConfirm)) {
+    throw new BadRequestError('all password info(past password, new password, new password confirm) required')
+  }
+
+  let decryptedNewPassword = '';
+  if (pastPassword && newPassword && newPasswordConfirm) {
+    // decrypt past password    
+    let decryptedPastPassword = '';
+    try {
+      decryptedPastPassword = decryptAES256(pastPassword);
+      decryptedNewPassword = decryptAES256(newPassword);
+    } catch (e: any) {
+      e.message = 'decryption error';
+      next(e);
+    }
+
+    // compare
+    const isMatched = await bcrypt.compare(decryptedPastPassword, user.password);
+    if (!isMatched) {
+      throw new UnprocessableError('passwords are not matched with the past one. cannot be updated');
+    }
+
+    // password confirm check
+    if (newPassword !== newPasswordConfirm) {
+      throw new BadRequestError('password should be confirmed correctly')
+    }
+
+    // past password should not be the same
+    if (pastPassword === newPassword) {
+      throw new DuplicationError('new password should not be the same with the existing one')
+    }
+  }
+  // hashing new password
+  const hashedPassword = decryptedNewPassword !== '' ? await bcrypt.hash(decryptedNewPassword, 12) : null;
+
+
+  const updateUser = async () => {
+    await conn.query(`
+    UPDATE USER SET
+      ${makeUpdateSentence(firstName, 'first_name')}
+      ${makeUpdateSentence(lastName, 'last_name')}
+      ${makeUpdateSentence(avatar, 'avatar')}
+      ${makeUpdateSentence(jobTitle, 'job_title')}
+      ${makeUpdateSentence(biography, 'biography')}
+      ${makeUpdateSentence(hashedPassword, 'password')}
+      ${makeUpdateSentence(careers, 'careers')}
+      updated_at='${toMysqlDate()}'   
+    WHERE idx = ${idx}
+    `)
+  }
+
+  if (!topics) {
+    await updateUser();
+  }
+
+  if (topics) {
+    // topic exist check  
+    for (const topicIdx of topics) {
+      const topics = await conn.query(`SELECT idx FROM TOPIC WHERE idx=${topicIdx}`);
+      if (topics.length <= 0) {
+        throw new BadRequestError('topic not exist')
+      }
+    }
+
+    // delete & insert & update (transaction)
+    try {
+      await conn.beginTransaction();
+      await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx = ${idx}`)
+      for (const topicIdx of topics) {
+        await conn.query(`INSERT INTO USER_TOPIC SET user_idx=${idx}, topic_idx=${topicIdx}`)
+      }
+      await updateUser();
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      next(e);
+    }
+  }
+
+  respond(res, 200)
+
 }

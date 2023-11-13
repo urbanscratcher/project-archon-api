@@ -43,6 +43,14 @@ export function parseOrderQuery(str: string) {
   }
 }
 
+export const makeUpdateSentence = (obj: any, name: string) => {
+  if (obj) {
+    return `${name}=${typeof obj === 'string' ? "'" + obj + "'" : obj},`
+  } else {
+    return '';
+  }
+}
+
 // Check validation --------------------------
 export function checkRequireds([...args]: Array<any>, [...names]: Array<string>) {
   args.forEach((arg, idx) => {

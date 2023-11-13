@@ -1,10 +1,11 @@
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError } from '../classes/Errors';
+import { createTokens, verifyAccessToken } from '../utils/manageJwt';
+import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, respond } from '../utils/helper';
-import { decryptAES256, encryptAES256 } from '../utils/crypto';
-import { createTokens } from '../utils/createJwt';
 const logger = pino({ level: 'debug' });
 
 export async function verifyEmail(conn: any, req: Request, res: Response) {
@@ -38,8 +39,7 @@ export async function signIn(conn: any, req: Request, res: Response, next: NextF
   // AES256 decryption
   let decryptedPassword = '';
   try {
-    const secret: string = process.env.AES_SECRET ?? '';
-    decryptedPassword = decryptAES256(secret, password);
+    decryptedPassword = decryptAES256(password);
   } catch (e: any) {
     e.message = 'encryption error'
     next(e)
@@ -54,4 +54,39 @@ export async function signIn(conn: any, req: Request, res: Response, next: NextF
   }
 
   respond(res, 201, createTokens({ idx: user.idx }))
+}
+
+export async function protect(conn: any, req: Request, res: Response, next: NextFunction) {
+  // parse
+  const authorization = req.headers?.authorization;
+
+  // required check
+  if (!authorization || !authorization.startsWith('Bearer')) {
+    throw new UnauthenticatedError('authorization required')
+  }
+
+  const token = authorization.split(' ')[1]
+
+  if (!token) {
+    throw new UnauthenticatedError('tokens required')
+  }
+
+  // verify tokens
+  const decoded: any = await verifyAccessToken(token);
+  console.log(decoded);
+
+  // user exists check
+  const idx = decoded?.idx;
+  console.log(idx);
+  const users = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is null`)
+
+  if (users.length <= 0) {
+    throw new UnauthenticatedError('user not exists')
+  }
+
+  const user = users[0];
+
+  // password changed check
+
+  next()
 }
