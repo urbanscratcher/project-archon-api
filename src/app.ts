@@ -5,13 +5,14 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import pino from 'pino';
-import { NotFoundError } from "./dtos/Errors";
 import globalErrorHandler from './controllers/errorController';
+import { NotFoundError } from "./dtos/Errors";
 import { authRouter } from './routers/authRoutes';
 import { coverRouter } from './routers/coverRoutes';
 import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
+import { PORT } from './utils/constants';
 const { xss } = require('express-xss-sanitizer')
 
 // ENV SETTING ------------------------------------------
@@ -51,9 +52,7 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(xss());
 
 // Prevent parameter pollution
-app.use(hpp({
-  whitelist: ['order']
-}));
+app.use(hpp());
 
 // Cookie parser
 app.use(cookieParser())
@@ -81,7 +80,6 @@ app.all('*', (req, res, next) => {
 app.use(globalErrorHandler)
 
 // SERVER RUN --------------------------------------------
-const PORT = 5003;
 const server = app.listen(PORT, () => {
   logger.info({}, `App running on port... ${PORT}`)
 });

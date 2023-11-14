@@ -1,13 +1,16 @@
 import { NextFunction, Request, Response } from "express";
 import pino from 'pino';
 import { InternalError, UnauthenticatedError } from "../dtos/Errors";
+import { NODE_ENV } from "../utils/constants";
 const logger = pino({ level: 'debug' });
 
 export default function globalErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
   // only in dev     
-  console.log('-------------------');
-  console.log(err);
-  console.log('-------------------');
+  if (NODE_ENV === 'development') {
+    console.log('-------------------');
+    console.log(err);
+    console.log('-------------------');
+  }
 
   logger.debug(err, 'Any error logging')
 

@@ -29,12 +29,19 @@ function toSnakeCase(obj: any) {
   });
 }
 
-export function parseOrderQuery(str: string) {
-  if (str.slice(0, 1) === '-') {
-    return `${str.slice(1, str.length)} DESC`;
-  } else {
-    return `${str} ASC`;
+export function parseOrderQuery(str: string, allowedFields: string[]) {
+  const isDescending: boolean = str.slice(0, 1) === '-' ? true : false;
+  const orderStr = isDescending ? 'DESC' : 'ASC';
+  const inputField = isDescending ? str.slice(1, str.length) : str;
+
+  // whitelist check
+  const isAllowed = allowedFields.includes(inputField);
+
+  if (!isAllowed) {
+    throw new BadRequestError('proper order query needed');
   }
+
+  return `${inputField} ${orderStr}`
 }
 
 

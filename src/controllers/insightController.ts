@@ -73,15 +73,15 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
-  const offset = req.query?.offset ? req.query.offset : 0;
-  const limit = req.query?.limit ? req.query.limit : BASIC_INSIGHTS_LIMIT;
-  const order = req.query?.order ? req.query.order : null;
-  const filter = req.query?.filter ? req.query.filter : null;
-  const parsedFilter = typeof filter === 'string' && filter !== null && JSON.parse(filter);
-  const parsedOrder = typeof order === 'string' && order !== null && parseOrderQuery(order);
+  const offset = req.query?.offset ? +req.query.offset : 0;
+  const limit = req.query?.limit ? +req.query.limit : BASIC_INSIGHTS_LIMIT;
+  const order = req.query?.order;
+  const filter = req.query?.filter;
+  const parsedFilter = filter ? (typeof filter === 'string' && filter !== null && JSON.parse(filter)) : null;
+  const parsedOrder = order ? (typeof order === 'string' && order !== null && parseOrderQuery(order, ['created_at'])) : null;
 
   // type check
-  if (typeof offset !== 'number' || typeof limit !== 'number') {
+  if (!Number.isInteger(offset) || !Number.isInteger(limit)) {
     throw new BadRequestError('offset, limit should be number');
   }
 
@@ -118,12 +118,9 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
     ${parsedFilter?.topic_idx ? 'AND i.topic_idx=' + parsedFilter?.topic_idx : ''}
     ${parsedFilter?.created_by ? 'AND i.created_by=' + parsedFilter?.created_by : ''}
   ) tb
-  ORDER BY ?
+  ORDER BY ${parsedOrder + ',' ?? ''} idx DESC
   LIMIT ? OFFSET ?
-  `, [
-    parsedOrder ? parsedOrder : 'idx DESC',
-    limit, offset
-  ])
+  `, [limit, offset])
 
   const data = insights.map((i: any) => new InsightDto([i]))
 
