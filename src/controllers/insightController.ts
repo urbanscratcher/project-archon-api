@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
-import { NotFoundError } from "../classes/Errors";
+import { BadRequestError, NotFoundError } from "../classes/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
-import { checkRequireds, getValidatedIdx, makeUpdateSentence, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
+import { checkRequireds, getValidatedIdx, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 const BASIC_INSIGHTS_LIMIT = 3;
@@ -57,13 +57,14 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
   const result = await conn.query(`
   INSERT INTO INSIGHT
   SET
-    title = '${title}'
-  , thumbnail = '${thumbnail}'
-  , content = '${content}'
-  , summary = '${summary}'
-  , topic_idx = ${topicIdx}
-  , created_by = ${createdBy}
-  , created_at = '${toMysqlDate()}'`);
+    title = ?
+  , thumbnail = ?
+  , content = ?
+  , summary = ?
+  , topic_idx = ?
+  , created_by = ?
+  , created_at = ?`,
+    [title, thumbnail, content, summary, topicIdx, createdBy, toMysqlDate()]);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
@@ -71,12 +72,26 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
-  const offset = req.query?.offset ? +req.query?.offset : 0;
-  const limit = req.query?.limit ? +req.query?.limit : BASIC_INSIGHTS_LIMIT;
-  const order = req.query?.order ? req.query?.order : null;
-  const filter = req.query?.filter ? req.query?.filter : null;
+  const offset = req.query?.offset ? req.query.offset : 0;
+  const limit = req.query?.limit ? req.query.limit : BASIC_INSIGHTS_LIMIT;
+  const order = req.query?.order ? req.query.order : null;
+  const filter = req.query?.filter ? req.query.filter : null;
   const parsedFilter = typeof filter === 'string' && filter !== null && JSON.parse(filter);
   const parsedOrder = typeof order === 'string' && order !== null && parseOrderQuery(order);
+
+  // type check
+  if (typeof offset !== 'number' || typeof limit !== 'number') {
+    throw new BadRequestError('offset, limit should be number');
+  }
+
+  // validation check
+  if (parsedFilter?.topic_idx && typeof parsedFilter.topic_idx !== 'number') {
+    throw new BadRequestError('topic_idx should be number')
+  }
+
+  if (parsedFilter?.created_by && typeof parsedFilter.created_by !== 'number') {
+    throw new BadRequestError('created_by should be number')
+  }
 
 
   const insights = await conn.query(`
@@ -102,9 +117,12 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
     ${parsedFilter?.topic_idx ? 'AND i.topic_idx=' + parsedFilter?.topic_idx : ''}
     ${parsedFilter?.created_by ? 'AND i.created_by=' + parsedFilter?.created_by : ''}
   ) tb
-  ORDER BY ${parsedOrder ? parsedOrder : 'idx DESC'}
-  LIMIT ${limit} OFFSET ${offset}
-  `)
+  ORDER BY ?
+  LIMIT ? OFFSET ?
+  `, [
+    parsedOrder ? parsedOrder : 'idx DESC',
+    limit, offset
+  ])
 
   const data = insights.map((i: any) => new InsightDto([i]))
 
@@ -124,31 +142,31 @@ export const getInsight = asyncHandledDB(async (conn: any, req: Request, res: Re
   const idx = getValidatedIdx(req);
 
   const foundInsights = await conn.query(`SELECT
-	i.idx as idx,
-	i.title as title,
-	i.thumbnail as thumbnail,
-	i.content as content,
-	i.summary as summary,
-	i.topic_idx as topic_idx,
-	i.created_at as created_at,
-	i.created_by as created_by,
-	i.edited_at as edited_at,
-	i.edited_by as edited_by,
-	cu.first_name as created_first_name,
-	cu.last_name as created_last_name,
-	cu.avatar as created_avatar,
-	cu.biography as created_biography,
-	t.name as topic_name,
-	t2.seq as created_topic_seq,
-	t2.idx as created_topic_idx,
-	t2.name as created_topic_name
-FROM INSIGHT i
-LEFT JOIN USER cu ON i.created_by = cu.idx
-LEFT JOIN USER_TOPIC ut ON i.created_by = ut.user_idx
-LEFT JOIN TOPIC t2 ON t2.idx  = ut.topic_idx
-LEFT JOIN TOPIC t ON i.topic_idx = t.idx
-WHERE i.idx = ${idx}
-AND i.del_at is null`);
+    i.idx as idx,
+    i.title as title,
+    i.thumbnail as thumbnail,
+    i.content as content,
+    i.summary as summary,
+    i.topic_idx as topic_idx,
+    i.created_at as created_at,
+    i.created_by as created_by,
+    i.edited_at as edited_at,
+    i.edited_by as edited_by,
+    cu.first_name as created_first_name,
+    cu.last_name as created_last_name,
+    cu.avatar as created_avatar,
+    cu.biography as created_biography,
+    t.name as topic_name,
+    t2.seq as created_topic_seq,
+    t2.idx as created_topic_idx,
+    t2.name as created_topic_name
+  FROM INSIGHT i
+  LEFT JOIN USER cu ON i.created_by = cu.idx
+  LEFT JOIN USER_TOPIC ut ON i.created_by = ut.user_idx
+  LEFT JOIN TOPIC t2 ON t2.idx  = ut.topic_idx
+  LEFT JOIN TOPIC t ON i.topic_idx = t.idx
+  WHERE i.idx = ?
+  AND i.del_at is null`, idx);
 
   if (foundInsights <= 0) {
     throw new NotFoundError('insight not found')
@@ -163,7 +181,7 @@ AND i.del_at is null`);
 export const deleteInsight = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
-  const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ${idx} del_at is null`);
+  const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ? AND del_at is null`, idx);
 
   if (foundInsights.length <= 0) {
     throw new NotFoundError('insight not found')
@@ -171,8 +189,8 @@ export const deleteInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
   const result = await conn.query(`
   UPDATE INSIGHT SET
-    del_at='${toMysqlDate()}'
-  WHERE idx = ${idx}`);
+    del_at = ?
+  WHERE idx = ?`, [toMysqlDate(), idx]);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200)
@@ -182,7 +200,7 @@ export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res:
   const idx = getValidatedIdx(req);
 
   // insight exist check
-  const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ${idx} AND del_at is null`);
+  const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ? AND del_at is null`, idx);
   if (foundInsights.length <= 0) {
     throw new NotFoundError('insight not found')
   }
@@ -195,18 +213,26 @@ export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res:
   const topicIdx = req.body?.topic_idx ?? null;
   const editedBy = req.body?.edited_by ?? null;
 
-
   await conn.query(`
   UPDATE INSIGHT SET
-    ${makeUpdateSentence(title, 'title')}
-    ${makeUpdateSentence(thumbnail, 'thumbnail')}
-    ${makeUpdateSentence(content, 'content')}
-    ${makeUpdateSentence(summary, 'summary')}
-    ${makeUpdateSentence(topicIdx, 'topic_idx')}
-    ${makeUpdateSentence(editedBy, 'edited_by')}
-    edited_at='${toMysqlDate()}'   
-  WHERE idx = ${idx}
-  `)
+    title = ?,
+    thumbnail = ?,
+    content = ?,
+    summary = ?,
+    topic_idx = ?,
+    edited_by = ?,
+    edited_at = ?   
+  WHERE idx = ?
+  `, [
+    title,
+    thumbnail,
+    content,
+    summary,
+    topicIdx,
+    editedBy,
+    toMysqlDate(),
+    idx
+  ])
 
   respond(res, 200)
 })

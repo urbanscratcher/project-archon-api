@@ -7,7 +7,6 @@ export function toArray(str: string) {
   return JSON.parse(str.replace(/'/g, '"'));
 }
 
-
 export function toMysqlDate(date?: Date): string {
   if (!date) date = new Date();
   const formatTime = (time: number): string => time > 10 ? `${time}` : '0' + time;
@@ -20,11 +19,6 @@ export function toMysqlDate(date?: Date): string {
   const sec = formatTime(date.getSeconds());
 
   return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
-}
-
-
-export function nullableField(obj: any) {
-  return `${obj ? "'" + obj + "'" : 'NULL'}`
 }
 
 
@@ -43,13 +37,6 @@ export function parseOrderQuery(str: string) {
   }
 }
 
-export const makeUpdateSentence = (obj: any, name: string) => {
-  if (obj) {
-    return `${name}=${typeof obj === 'string' ? "'" + obj + "'" : obj},`
-  } else {
-    return '';
-  }
-}
 
 // Check validation --------------------------
 export function checkRequireds([...args]: Array<any>, [...names]: Array<string>) {
@@ -62,10 +49,30 @@ export function checkRequireds([...args]: Array<any>, [...names]: Array<string>)
 
 export function getValidatedIdx(req: Request) {
   const idx = +req.params?.idx;
-  if (isNaN(idx) || idx === null || idx === undefined) {
+  if (!Number.isInteger(+idx)) {
     throw new BadRequestError(`idx is irregular value`)
   } else {
     return idx;
+  }
+}
+
+export const isSpecialOrBlank = (inputStr: string) => {
+  if (inputStr.search(/\W|\s/g) > -1) {
+    throw new BadRequestError('special characters or blank should not be included')
+  }
+}
+
+export const isNumber = (inputStr: string) => {
+  if (inputStr.search(/^\d+$/g)) {
+    throw new BadRequestError('should be number')
+  }
+}
+
+
+export const isEmail = (emailStr: string) => {
+  const regEx = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+  if (!regEx.test(emailStr)) {
+    throw new BadRequestError('email is not a valid format')
   }
 }
 

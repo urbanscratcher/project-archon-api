@@ -14,12 +14,12 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
   checkRequireds([insightIdx, createdBy], ['insight_idx', 'created_by']);
 
-  const insights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ${insightIdx}`);
+  const insights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ?`, insightIdx);
   if (insights.length <= 0) {
     throw new NotFoundError('insight not found')
   }
 
-  const existingCovers = await conn.query(`SELECT * FROM COVER WHERE insight_idx = ${insightIdx}`);
+  const existingCovers = await conn.query(`SELECT * FROM COVER WHERE insight_idx = ?`, insightIdx);
   if (existingCovers.length > 0) {
     throw new DuplicationError('insight already exists')
   }
@@ -31,11 +31,11 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
   const result = await conn.query(`INSERT INTO COVER
   SET
-    insight_idx = ${insightIdx}
-    , is_main = ${isMain}
-    , created_by = ${createdBy}
-    , created_at = '${toMysqlDate()}'
-  `)
+    insight_idx = ?
+    , is_main = ?
+    , created_by = ?
+    , created_at = ?
+  `, [insightIdx, isMain, createdBy, toMysqlDate()])
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
@@ -45,7 +45,7 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidatedIdx(req);
 
-  const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ${idx}`);
+  const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
   if (covers.length <= 0) {
     throw new NotFoundError('cover not found')
   }
@@ -59,16 +59,19 @@ export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
   try {
     await conn.beginTransaction();
+
+    await conn.query(`
+    UPDATE COVER SET
+      is_main = false
+    WHERE idx = ?
+  `, mainCovers[0].idx);
+
     await conn.query(`
       UPDATE COVER SET
-        is_main = ${isMain}
-      WHERE idx = ${idx}
-    `);
-    await conn.query(`
-      UPDATE COVER SET
-        is_main = false
-      WHERE idx = ${mainCovers[0].idx}
-    `);
+        is_main = ?
+      WHERE idx = ?
+    `, [isMain, idx]);
+
     await conn.commit();
     respond(res, 200);
   } catch (e) {
@@ -80,7 +83,7 @@ export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: R
 export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = getValidatedIdx(req);
 
-  const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ${idx}`);
+  const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
   if (covers.length <= 0) {
     throw new NotFoundError('cover not found')
   }
@@ -89,7 +92,7 @@ export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: R
     throw new BadRequestError('main cover cannot be removed')
   }
 
-  const result = await conn.query(`DELETE FROM COVER WHERE idx = ${idx}`);
+  const result = await conn.query(`DELETE FROM COVER WHERE idx = ?`, idx);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
@@ -109,7 +112,7 @@ export const getAllCovers = asyncHandledDB(async (conn: any, req: Request, res: 
   FROM COVER c
   LEFT JOIN INSIGHT i ON c.insight_idx = i.idx
   LEFT JOIN TOPIC t ON i.topic_idx = t.idx
-  LIMIT ${BASIC_COVERS_LIMIT} OFFSET 0`);
+  LIMIT ? OFFSET 0`, BASIC_COVERS_LIMIT);
 
   const data = covers.length > 0 ? covers.map((c: any) => {
     return {
@@ -126,7 +129,6 @@ export const getAllCovers = asyncHandledDB(async (conn: any, req: Request, res: 
       created_at: c.created_at.toISOString(),
       created_by: c.created_by
     }
-
   }) : [];
 
   const coverList = new ListDto<any>(data, data.length);

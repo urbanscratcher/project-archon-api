@@ -4,15 +4,17 @@ import { InternalError, UnauthenticatedError } from "../classes/Errors";
 const logger = pino({ level: 'debug' });
 
 export default function globalErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-  // remove after dev done
+  // only in dev
   console.log('-------------------');
   console.log(err);
   console.log('-------------------');
-  logger.debug(err, 'Any errors logging')
+
+  logger.debug(err, 'Any error logging')
 
   // jwt token error
   if (err.name === 'JsonWebTokenError') err = new UnauthenticatedError(`${err}`)
   if (err.name === 'TokenExpiredError') err = new UnauthenticatedError(`${err}`)
+  if (err.name === 'SqlError') err = new InternalError('DB error')
 
 
 

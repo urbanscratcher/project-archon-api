@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { signIn, verifyEmail } from '../controllers/authController';
+import { refreshTokens, signIn, verifyEmail } from '../controllers/authController';
 
 export const authRouter: Router = express.Router();
 
@@ -10,3 +10,9 @@ authRouter
 authRouter
   .route('/email')
   .post(verifyEmail)
+
+authRouter
+  .route('/refresh')
+  .post(refreshTokens)
+
+

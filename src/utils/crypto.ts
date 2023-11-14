@@ -21,8 +21,6 @@ export function encryptAES256(text: string) {
 }
 
 export function decryptAES256(text: string) {
-  console.log('secret!!!!!!!! ' + secret);
-
   if (!secret) { throw new UnprocessableError(`decryption error: secret not exist ${secret}`) }
 
   const key: Buffer = Buffer.from(secret, bufferEncryption);

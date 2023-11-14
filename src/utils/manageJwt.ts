@@ -3,30 +3,30 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' })
 
 const jwtAccessSecret = process.env?.JWT_ACCESS_SECRET ?? '';
-const jwtAccessExpiresIn = process.env?.JWT_ACCESS_EXPIRES_IN ?? '14d';
+export const jwtAccessExpiresIn = process.env?.JWT_ACCESS_EXPIRES_IN ?? '14d';
 const jwtRefreshSecret = process.env?.JWT_REFRESH_SECRET ?? '';
 const jwtRefreshExpiresIn = process.env?.JWT_REFRESH_EXPIRES_IN ?? '14d';
 
-function createAccessToken(payload: object) {
-  return jwt.sign(payload, jwtAccessSecret, {
-    expiresIn: jwtAccessExpiresIn
-  });
-}
-
-function createRefreshToken(payload: object) {
-  return jwt.sign(payload, jwtRefreshSecret, {
-    expiresIn: jwtRefreshExpiresIn
-  })
-}
-
-
-export function createTokens(payload: object) {
+export function createAccessToken(payload: object) {
   return {
-    access_token: createAccessToken(payload), refresh_token: createRefreshToken(payload)
+    access_token: jwt.sign(payload, jwtAccessSecret, {
+      expiresIn: jwtAccessExpiresIn
+    })
   }
 }
 
-export function verifyAccessToken(token: string) {
+export function createRefreshToken(payload: object) {
+  const token = jwt.sign(payload, jwtRefreshSecret, {
+    expiresIn: jwtRefreshExpiresIn
+  });
+  console.log(token);
+  return {
+    refresh_token: token
+  }
+}
+
+
+export async function verifyAccessToken(token: string) {
   return new Promise((resolve, reject) => {
     jwt.verify(token, jwtAccessSecret, (err, decoded) => {
       if (err) return reject(err);

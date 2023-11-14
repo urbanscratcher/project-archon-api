@@ -8,6 +8,7 @@ import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
 import { authRouter } from './routers/authRoutes';
+import cookieParser from 'cookie-parser';
 const httpLogger = require('pino-http')();
 const logger = pino({ level: 'debug' });
 dotenv.config({ path: '.env' })
@@ -25,6 +26,7 @@ process.on('uncaughtException', (err: Error) => {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser())
 
 // MIDDLEWARES -------------------------------------------
 // Logging all http requests

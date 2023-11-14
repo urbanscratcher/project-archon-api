@@ -1,19 +1,24 @@
 import bcrypt from 'bcrypt';
-import { NextFunction, Request, Response } from 'express';
+import { CookieOptions, NextFunction, Request, Response } from 'express';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnauthorizedError } from '../classes/Errors';
 import { asyncHandledDB } from '../utils/connectDB';
 import { decryptAES256 } from '../utils/crypto';
-import { checkRequireds, respond } from '../utils/helper';
-import { createTokens, verifyAccessToken } from '../utils/manageJwt';
+import { checkRequireds, isEmail, respond } from '../utils/helper';
+import { createAccessToken, createRefreshToken, jwtAccessExpiresIn, verifyAccessToken, verifyRefreshToken } from '../utils/manageJwt';
 
 export const verifyEmail = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
+  // required check
   const email = req.body?.email;
   if (!email) {
     throw new BadRequestError('email is required')
   }
 
-  const emails = await conn.query(`SELECT * FROM USER WHERE email = '${email}'`);
+  // validation check
+  isEmail(email);
+
+  // DB
+  const emails = await conn.query(`SELECT * FROM USER WHERE email = ? AND del_at is NULL`, email);
   if (emails.length > 0) {
     throw new DuplicationError('email already exists')
   }
@@ -28,8 +33,11 @@ export const signIn = asyncHandledDB(async (conn: any, req: Request, res: Respon
   // required check
   checkRequireds([email, password], ['email', 'password']);
 
+  // validation check
+  isEmail(email);
+
   // user existance check
-  const foundUsers = await conn.query(`SELECT * FROM USER WHERE email='${email}'`);
+  const foundUsers = await conn.query(`SELECT * FROM USER WHERE email = ? AND del_at is NULL`, email);
   if (foundUsers.length <= 0) {
     throw new NotFoundError('user not found')
   }
@@ -51,7 +59,57 @@ export const signIn = asyncHandledDB(async (conn: any, req: Request, res: Respon
     throw new UnauthenticatedError('passwords are not matched');
   }
 
-  respond(res, 201, createTokens({ idx: user.idx }))
+  sendIssuedTokens(res, user)
+})
+
+export const sendIssuedTokens = (res: Response, user: any) => {
+  const toMs = (str: string) => {
+    switch (str.slice(-1)) {
+      case 's':
+        return +str.slice(0, str.length - 1) * 1000;
+      case 'm':
+        return +str.slice(0, str.length - 1) * 60;
+      case 'h':
+        return +str.slice(0, str.length - 1) * 60 * 60;
+      case 'd':
+        return +str.slice(0, str.length - 1) * 60 * 60 * 24;
+      default:
+        return 60 * 60 * 1000;
+    }
+  }
+  const cookieOptions: CookieOptions = {
+    expires: new Date(Date.now() + toMs(jwtAccessExpiresIn)),
+    httpOnly: true
+  }
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+
+  res.cookie('refresh_token', createRefreshToken({ idx: user.idx }), cookieOptions)
+
+  respond(res, 201, createAccessToken({ idx: user.idx }))
+}
+
+export const refreshTokens = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
+  const refreshToken = req.cookies.refresh_token;
+  if (!refreshToken || refreshToken === '') {
+    throw new BadRequestError('no token')
+  }
+
+  // verify refresh token
+  const verifiedToken = await verifyRefreshToken(refreshToken);
+  console.log(verifiedToken);
+  const idx = verifiedToken?.idx;
+  if (!Number.isInteger(+idx)) {
+    throw new UnauthenticatedError('no idx');
+  }
+
+  // check if user exists
+  const users = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is NULL`, idx);
+  if (users.length <= 0) {
+    throw new UnauthenticatedError('user not found')
+  }
+
+  sendIssuedTokens(res, users[0])
 })
 
 export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
@@ -71,10 +129,13 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
 
   // verify tokens
   const decoded: any = await verifyAccessToken(token);
+  if (Number.isInteger(+decoded?.idx) || Number.isInteger(+decoded?.iat)) {
+    throw new UnauthenticatedError('no idx and expiry date');
+  }
 
   // user exists check
-  const idx = decoded?.idx;
-  const users = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is null`)
+  const idx = decoded.idx;
+  const users = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is null`, idx)
   if (users.length <= 0) {
     throw new UnauthenticatedError('user not exists')
   }

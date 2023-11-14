@@ -3,7 +3,7 @@ import pino from 'pino';
 import { ListDto } from '../classes/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
-import { checkRequireds, getValidatedIdx, respond, toArray } from '../utils/helper';
+import { checkRequireds, getValidatedIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
@@ -13,8 +13,11 @@ export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: R
   // required check
   checkRequireds([name, createdBy], ['name', 'created_by']);
 
+  // validation check
+  isSpecialOrBlank(name);
+
   // duplicated check
-  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = '${name}'`);
+  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = ?`, name);
   if (existingNames.length > 0) {
     throw new DuplicationError('duplicated name');
   }
@@ -27,7 +30,7 @@ export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: R
   }
 
   // DB
-  const result = await conn.query(`INSERT INTO TOPIC (name, created_by, seq) values ('${name}',${createdBy}, ${lastOrder + 1})`);
+  const result = await conn.query(`INSERT INTO TOPIC (name, created_by, seq) values ( ?, ?, ?)`, [name, createdBy, lastOrder + 1]);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 201);
@@ -41,20 +44,28 @@ export const updateTopic = asyncHandledDB(async (conn: any, req: Request, res: R
   // required check
   checkRequireds([name, createdBy], ['name', 'created_by']);
 
+  // validation check
+  isSpecialOrBlank(name);
+
   // exist check
-  const existingTopic = await conn.query(`SELECT * FROM TOPIC where idx = '${idx}'`);
+  const existingTopic = await conn.query(`SELECT * FROM TOPIC where idx = ?`, idx);
   if (existingTopic.length <= 0) {
     throw new NotFoundError('topic not found');
   }
 
   // duplicated check
-  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = '${name}'`);
+  const existingNames = await conn.query(`SELECT * FROM TOPIC where name = ?`, name);
   if (existingNames.length > 0) {
     throw new DuplicationError('duplicated name');
   }
 
   // DB
-  const result = await conn.query(`UPDATE TOPIC SET name='${name}', created_by=${createdBy} WHERE idx=${idx}`);
+  const result = await conn.query(`UPDATE TOPIC
+    SET
+      name = ?,
+      created_by = ?
+    WHERE idx = ?`,
+    [name, createdBy, idx]);
   logger.debug({ res: result }, 'DB response');
 
   respond(res, 200);
@@ -75,7 +86,7 @@ export const getAllTopics = asyncHandledDB(async (conn: any, req: Request, res: 
       count(*) as total_insights
     FROM INSIGHT i
     GROUP BY i.topic_idx) ti ON ti.topic_idx = t.idx
-ORDER BY t.seq ASC
+  ORDER BY t.seq ASC
 `);
 
   const topicList = new ListDto<any>(topics.map((topic: any) => { return { idx: topic.idx, name: topic.name, seq: topic.seq, totalInsights: Number(topic.total_insights) } }), topics.length);
@@ -98,7 +109,7 @@ export const updateTopics = asyncHandledDB(async (conn: any, req: Request, res: 
   try {
     await conn.beginTransaction();
     idxSeq.forEach(async (idx: number, seqNum: number) => {
-      await conn.query(`UPDATE TOPIC SET seq = ${seqNum + 1} WHERE idx = ${idx}`);
+      await conn.query(`UPDATE TOPIC SET seq = ? WHERE idx = ?`, [seqNum + 1, idx]);
     })
     await conn.commit();
   } catch (e) {
@@ -111,6 +122,6 @@ export const updateTopics = asyncHandledDB(async (conn: any, req: Request, res: 
 
 export const removeTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = getValidatedIdx(req);
-  await conn.query(`DELETE FROM TOPIC WHERE idx=${idx}`);
+  await conn.query(`DELETE FROM TOPIC WHERE idx = ?`, idx);
   respond(res, 200);
 })

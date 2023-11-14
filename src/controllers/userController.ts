@@ -4,9 +4,9 @@ import pino from 'pino';
 import { Dto, ListDto } from '../classes/Dto';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../classes/Errors";
 import { decryptAES256 } from '../utils/crypto';
-import { checkRequireds, getValidatedIdx, makeUpdateSentence, nullableField, respond, toArray, toMysqlDate } from '../utils/helper';
-import { createTokens } from '../utils/manageJwt';
+import { checkRequireds, getValidatedIdx, isEmail, isSpecialOrBlank, respond, toArray, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
+import { sendIssuedTokens } from './authController';
 const logger = pino({ level: 'debug' });
 
 export enum ROLE {
@@ -68,6 +68,12 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   // required check
   checkRequireds([email, password, passwordConfirm, firstName, lastName], ['email', 'password', 'password_confirm', 'first_name', 'last_name'])
 
+  // validation check
+  isSpecialOrBlank(firstName);
+  isSpecialOrBlank(lastName);
+  isEmail(email);
+
+
   // role check
   if (role && !(role === ROLE.USER || role === ROLE.ADMIN || role === ROLE.EDITOR || role === ROLE.WRITER)) {
     throw new BadRequestError('role is not valid')
@@ -79,7 +85,7 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   }
 
   // email duplication check
-  const emails = await conn.query(`SELECT * FROM USER WHERE email = '${email}'`);
+  const emails = await conn.query(`SELECT * FROM USER WHERE email = ?`, email);
   if (emails.length > 0) {
     throw new DuplicationError('email already exists')
   }
@@ -88,8 +94,6 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   let decryptedPassword = '';
   try {
     decryptedPassword = decryptAES256(password);
-
-    console.log(decryptedPassword);
   } catch (e: any) {
     e.message = 'decryption error'
     next(e)
@@ -104,22 +108,27 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
     const result = await conn.query(`
     INSERT INTO USER
     SET
-    email = '${email}'
-    , password = '${hashedPassword}'
-    , first_name = '${firstName}'
-    , last_name = '${lastName}'
-    , role = '${role ?? ROLE.USER}'
-    , avatar = ${nullableField(avatar)}
-    , job_title = ${nullableField(jobTitle)}
-    , biography = ${nullableField(biography)}
-    , careers = ${careers ? "'" + JSON.stringify(careers) + "'" : 'NULL'}
-    , created_at = '${toMysqlDate()}'`);
+    email = ?
+    , password = ?
+    , first_name = ?
+    , last_name = ?
+    , role = ?
+    , avatar = ?
+    , job_title = ?
+    , biography = ?
+    , careers = ?
+    , created_at = ?`,
+      [email, hashedPassword, firstName, lastName,
+        role ?? ROLE.USER,
+        avatar, jobTitle, biography,
+        careers ? "'" + JSON.stringify(careers) + "'" : null, toMysqlDate()
+      ]);
     logger.debug({ res: result }, 'DB response');
     const insertedIdx = Number(result.insertId);
 
     if (topics) {
       for (const topicIdx of topics) {
-        const topic = await conn.query(`SELECT * FROM TOPIC WHERE idx = ${topicIdx}`);
+        const topic = await conn.query(`SELECT * FROM TOPIC WHERE idx = ?`, topicIdx);
 
         if (topic.length <= 0) {
           throw new NotFoundError(`topic not exist`);
@@ -127,14 +136,14 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
       }
 
       topics.forEach(async (topicIdx: number) => {
-        const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (${insertedIdx}, ${topicIdx})`);
+        const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (?, ?)`, [insertedIdx, topicIdx]);
         logger.debug({ res: cateResult }, 'DB response');
       })
     }
     await conn.commit();
 
     // create jwt tokens
-    respond(res, 201, createTokens({ idx: insertedIdx }));
+    sendIssuedTokens(res, { idx: insertedIdx });
   } catch (e) {
     await conn.rollback();
     next(e);
@@ -157,7 +166,7 @@ export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Resp
       c.seq as seq
     FROM USER_TOPIC uc
     LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
-    WHERE user_idx = ${u.idx}`);
+    WHERE user_idx = ?`, u.idx);
     u.topics = foundExtraInfo.length > 0 ? foundExtraInfo : undefined;
     usersWithExtraInfo.push(u);
   }
@@ -173,31 +182,28 @@ export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Respo
 
   // exist check
   const foundUsers = await conn.query(`SELECT
-	u.idx as idx,
-	u.email as email,
-	u.password as password,
-	u.first_name as first_name,
-	u.last_name as last_name,
-	u.role as role,
-	u.avatar as avatar,
-	u.job_title as job_title,
-	u.biography as biography,
-	u.careers as careers,
-	u.created_at as created_at,
-	c.idx as topic_idx,
-	c.name as topic_name,
-	c.seq as topic_seq
-FROM USER u
-LEFT JOIN USER_TOPIC uc ON u.idx = uc.user_idx 
-LEFT JOIN TOPIC c ON uc.topic_idx = c.idx 
-WHERE u.idx = ${idx}
-AND u.del_at is NULL`);
+    u.idx as idx,
+    u.email as email,
+    u.password as password,
+    u.first_name as first_name,
+    u.last_name as last_name,
+    u.role as role,
+    u.avatar as avatar,
+    u.job_title as job_title,
+    u.biography as biography,
+    u.careers as careers,
+    u.created_at as created_at,
+    c.idx as topic_idx,
+    c.name as topic_name,
+    c.seq as topic_seq
+  FROM USER u
+  LEFT JOIN USER_TOPIC uc ON u.idx = uc.user_idx 
+  LEFT JOIN TOPIC c ON uc.topic_idx = c.idx 
+  WHERE u.idx = ?
+  AND u.del_at is NULL`, idx);
   if (foundUsers.length <= 0) {
     throw new NotFoundError(`user not found`)
   }
-
-  // get extra info
-  const topics = await conn.query(`SELECT * FROM USER_TOPIC WHERE user_idx = ${idx}`);
 
   const user: UserDto = new UserDto(foundUsers);
 
@@ -209,25 +215,15 @@ export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   const idx = getValidatedIdx(req);
 
   // exist check
-  const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ${idx} AND del_at is NULL`);
+  const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is NULL`, idx);
   if (foundUsers.length <= 0) {
     throw new NotFoundError(`user not found`)
   }
 
   // DB
-  await conn.beginTransaction();
-  try {
-    const result = await conn.query(`UPDATE USER SET del_at = '${toMysqlDate()}' WHERE idx = ${idx}`);
-    logger.debug({ res: result }, 'DB response');
+  const result = await conn.query(`UPDATE USER SET del_at = ? WHERE idx = ?`, [toMysqlDate(), idx]);
+  logger.debug({ res: result }, 'DB response');
 
-    const cateResult = await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx=${idx}`);
-    logger.debug({ res: cateResult }, 'DB response');
-
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback()
-    next(e);
-  }
   respond(res, 200);
 })
 
@@ -235,7 +231,7 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   const idx = getValidatedIdx(req);
 
   // exist check
-  const users = await conn.query(`SELECT * FROM USER WHERE idx=${idx} AND del_at is null`);
+  const users = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is null`, idx);
   if (users.length <= 0) {
     throw new NotFoundError('user not found')
   }
@@ -250,13 +246,17 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   const avatar = req.body?.avatar ?? null;
   const jobTitle = req.body?.job_title ?? null;
   const biography = req.body?.biography ?? null;
-  const careers = req.body?.careers ? JSON.stringify(toArray(req.body.careers)) : null;
+  const careers = req.body?.careers ? toArray(req.body.careers) : null;
   const topics = req.body?.topics ? toArray(req.body.topics) : null;
 
   // password required check
   if ((pastPassword || newPassword || newPasswordConfirm) && !(pastPassword && newPassword && newPasswordConfirm)) {
     throw new BadRequestError('all password info(past password, new password, new password confirm) required')
   }
+
+  // validation check
+  firstName && isSpecialOrBlank(firstName);
+  lastName && isSpecialOrBlank(lastName);
 
   let decryptedNewPassword = '';
   if (pastPassword && newPassword && newPasswordConfirm) {
@@ -291,20 +291,33 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
 
 
   const updateUser = async () => {
-    const nowStr = toMysqlDate();
+    const now = toMysqlDate();
     await conn.query(`
     UPDATE USER SET
-      ${makeUpdateSentence(firstName, 'first_name')}
-      ${makeUpdateSentence(lastName, 'last_name')}
-      ${makeUpdateSentence(avatar, 'avatar')}
-      ${makeUpdateSentence(jobTitle, 'job_title')}
-      ${makeUpdateSentence(biography, 'biography')}
-      ${makeUpdateSentence(hashedPassword, 'password')}
-      ${makeUpdateSentence(careers, 'careers')}
-      ${hashedPassword ? 'password_updated_at=' + "'" + nowStr + "'" + ',' : ''}
-      updated_at='${nowStr}'
-    WHERE idx = ${idx}
-    `)
+      first_name = ?,
+      last_name = ?,
+      avatar = ?,
+      job_title = ?,     
+      biography = ?,
+      password = ?,
+      careers = ?,
+      password_updated_at = ?,      
+      updated_at = ?
+    WHERE idx = ?`,
+      [
+        firstName ?? user.first_name,
+        lastName ?? user.last_name,
+        avatar ?? user.avatar,
+        jobTitle ?? user.job_title,
+        biography ?? user.biography,
+        hashedPassword ?? user.password,
+        careers ?
+          careers.length > 0 ? JSON.stringify(careers) : null
+          : user.careers,
+        hashedPassword ? now : null,
+        now,
+        idx
+      ])
   }
 
   if (!topics) {
@@ -314,7 +327,7 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   if (topics) {
     // topic exist check  
     for (const topicIdx of topics) {
-      const topics = await conn.query(`SELECT idx FROM TOPIC WHERE idx=${topicIdx}`);
+      const topics = await conn.query(`SELECT idx FROM TOPIC WHERE idx = ?`, topicIdx);
       if (topics.length <= 0) {
         throw new BadRequestError('topic not exist')
       }
@@ -323,9 +336,9 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
     // delete & insert & update (transaction)
     try {
       await conn.beginTransaction();
-      await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx = ${idx}`)
+      await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx = ?`, idx)
       for (const topicIdx of topics) {
-        await conn.query(`INSERT INTO USER_TOPIC SET user_idx=${idx}, topic_idx=${topicIdx}`)
+        await conn.query(`INSERT INTO USER_TOPIC SET user_idx = ?, topic_idx = ?`, [idx, topicIdx])
       }
       await updateUser();
       await conn.commit();
