@@ -1,19 +1,25 @@
 import { Request, Response } from 'express';
 import pino from 'pino';
-import { ListDto } from '../classes/Dto';
-import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
+import { ListDto } from '../dtos/Dto';
+import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
-import { checkRequireds, getValidatedIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
+import { checkRequireds, getValidIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parsing
-  const { name, created_by: createdBy } = req.body
+  const name = req.body?.name;
+  const createdBy = req?.userIdx;
 
-  // required check
-  checkRequireds([name, createdBy], ['name', 'created_by']);
+  // validation check  
+  if (!name) {
+    throw new BadRequestError('name is required')
+  }
 
-  // validation check
+  if (!Number.isInteger(createdBy)) {
+    throw new BadRequestError('user idx is required')
+  }
+
   isSpecialOrBlank(name);
 
   // duplicated check
@@ -38,13 +44,20 @@ export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: R
 
 export const updateTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parsing
-  const { name, created_by: createdBy } = req.body
-  const idx = getValidatedIdx(req);
+  const name = req.body?.name;
+  const createdBy = req?.userIdx;
 
-  // required check
-  checkRequireds([name, createdBy], ['name', 'created_by']);
+  // validation check  
+  if (!name) {
+    throw new BadRequestError('name is required')
+  }
 
-  // validation check
+  const idx = getValidIdx(req);
+
+  if (!Number.isInteger(createdBy)) {
+    throw new BadRequestError('user idx is required')
+  }
+
   isSpecialOrBlank(name);
 
   // exist check
@@ -121,7 +134,16 @@ export const updateTopics = asyncHandledDB(async (conn: any, req: Request, res: 
 })
 
 export const removeTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const idx = getValidatedIdx(req);
-  await conn.query(`DELETE FROM TOPIC WHERE idx = ?`, idx);
+  const idx = getValidIdx(req);
+
+  // check if exists
+  const topics = await conn.query(`SELECT * FROM TOPIC WHERE idx = ?`, idx);
+  if (topics.length <= 0) {
+    throw new NotFoundError('topic not found')
+  }
+
+  const result = await conn.query(`DELETE FROM TOPIC WHERE idx = ?`, idx);
+  logger.debug(result, 'DB response')
+
   respond(res, 200);
 })

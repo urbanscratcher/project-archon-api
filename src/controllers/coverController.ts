@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
-import { ListDto } from '../classes/Dto';
-import { BadRequestError, DuplicationError, NotFoundError } from "../classes/Errors";
-import { checkRequireds, getValidatedIdx, respond, toMysqlDate } from '../utils/helper';
+import { ListDto } from '../dtos/Dto';
+import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
+import { getValidIdx, getValidUserIdx, respond, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 const logger = pino({ level: 'debug' });
 
@@ -10,9 +10,17 @@ const BASIC_COVERS_LIMIT = 3;
 
 
 export const createCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const { insight_idx: insightIdx, created_by: createdBy } = req.body;
+  const createdBy = getValidUserIdx(req);
+  const insightIdx = req.body?.insight_idx
 
-  checkRequireds([insightIdx, createdBy], ['insight_idx', 'created_by']);
+  if (insightIdx === undefined || insightIdx === null) {
+    throw new BadRequestError('insight idx is required and should be a number')
+  }
+
+  if (!Number.isInteger(insightIdx)) {
+    throw new BadRequestError('insight idx should be a number')
+  }
+
 
   const insights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ?`, insightIdx);
   if (insights.length <= 0) {
@@ -43,8 +51,9 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
 
 export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  const idx = getValidatedIdx(req);
+  const idx = getValidIdx(req);
 
+  // check if cover exists
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
   if (covers.length <= 0) {
     throw new NotFoundError('cover not found')
@@ -52,36 +61,46 @@ export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
   const mainCovers = await conn.query(`SELECT * FROM COVER WHERE is_main = 1`);
 
-  const isMain = Boolean(req.body?.is_main);
-  if (!isMain) {
-    throw new BadRequestError('is_main should exists')
+
+  // if no main cover
+  if (mainCovers.length <= 0) {
+    await conn.query(`UPDATE COVER SET is_main = true WHERE idx = ?`, idx);
   }
 
-  try {
-    await conn.beginTransaction();
+  // if main cover = input cover
+  if (mainCovers.length > 0 && mainCovers[0].idx === idx) {
+    throw new BadRequestError('the cover is already main')
+  }
 
-    await conn.query(`
-    UPDATE COVER SET
-      is_main = false
-    WHERE idx = ?
-  `, mainCovers[0].idx);
+  // else
+  if (mainCovers.length > 0) {
+    try {
+      await conn.beginTransaction();
 
-    await conn.query(`
+      await conn.query(`
       UPDATE COVER SET
-        is_main = ?
+        is_main = false
       WHERE idx = ?
-    `, [isMain, idx]);
+    `, mainCovers[0].idx);
 
-    await conn.commit();
-    respond(res, 200);
-  } catch (e) {
-    await conn.rollback();
-    next(e);
+      await conn.query(`
+        UPDATE COVER SET
+          is_main = true
+        WHERE idx = ?
+      `, [idx]);
+
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      next(e);
+    }
   }
+
+  respond(res, 200);
 })
 
 export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const idx = getValidatedIdx(req);
+  const idx = getValidIdx(req);
 
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
   if (covers.length <= 0) {
@@ -100,23 +119,26 @@ export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
 export const getAllCovers = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const covers = await conn.query(`
-  SELECT
-    c.idx as idx,
-    c.insight_idx as insight_idx,
-    c.created_at as created_at,
-    c.created_by as created_by,
-    i.title as title,
-    i.thumbnail as thumbnail,
-    i.topic_idx as topic_idx,
-    t.name as topic_name
-  FROM COVER c
-  LEFT JOIN INSIGHT i ON c.insight_idx = i.idx
-  LEFT JOIN TOPIC t ON i.topic_idx = t.idx
-  LIMIT ? OFFSET 0`, BASIC_COVERS_LIMIT);
+    SELECT
+      c.idx as idx,
+      c.insight_idx as insight_idx,
+      c.created_at as created_at,
+      c.created_by as created_by,
+      i.title as title,
+      i.thumbnail as thumbnail,
+      i.topic_idx as topic_idx,
+      t.name as topic_name,
+      c.is_main as is_main
+    FROM COVER c
+    LEFT JOIN INSIGHT i ON c.insight_idx = i.idx
+    LEFT JOIN TOPIC t ON i.topic_idx = t.idx
+    ORDER BY is_main DESC, idx DESC
+    LIMIT ? OFFSET 0`, BASIC_COVERS_LIMIT);
 
   const data = covers.length > 0 ? covers.map((c: any) => {
     return {
       idx: c.idx,
+      is_main: c.is_main === 1 ? true : false,
       insight: {
         idx: c.insight_idx,
         title: c.title,

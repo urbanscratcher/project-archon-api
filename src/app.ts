@@ -1,31 +1,61 @@
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import express from "express";
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import hpp from 'hpp';
 import pino from 'pino';
-import { NotFoundError } from "./classes/Errors";
+import { NotFoundError } from "./dtos/Errors";
 import globalErrorHandler from './controllers/errorController';
+import { authRouter } from './routers/authRoutes';
 import { coverRouter } from './routers/coverRoutes';
 import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
-import { authRouter } from './routers/authRoutes';
-import cookieParser from 'cookie-parser';
+const { xss } = require('express-xss-sanitizer')
+
+// ENV SETTING ------------------------------------------
 const httpLogger = require('pino-http')();
 const logger = pino({ level: 'debug' });
 dotenv.config({ path: '.env' })
 
-// Uncaught Exception Handling (Synchronous)
+// Uncaught Exception Handling (Synchronous) ------------
 process.on('uncaughtException', (err: Error) => {
   logger.error(err, 'uncaught exception errors occurred');
   logger.error({}, 'Shutting down...');
   process.exit(1);
 })
 
-
-
-// SETTING -----------------------------------------------
+// EXPRESS -----------------------------------------------
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// GLOBAL MIDDLEWARES ------------------------------------
+// Set security HTTP headers
+app.use(helmet());
+
+// Limit 100 reqs / 1h
+const limiter = rateLimit({
+  max: 100,
+  windowMs: 60 * 60 * 1000,
+  message: 'Too many reqs from this IP, please try again in an hour'
+});
+app.use('/archon-api', limiter);
+
+// Body parser reading data from body into req.body
+app.use(express.json({ limit: '10kb' }));
+
+// Form pareser w/ qs module
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Sanitize data against XSS
+app.use(xss());
+
+// Prevent parameter pollution
+app.use(hpp({
+  whitelist: ['order']
+}));
+
+// Cookie parser
 app.use(cookieParser())
 
 // MIDDLEWARES -------------------------------------------
@@ -50,14 +80,11 @@ app.all('*', (req, res, next) => {
 // Error Handling
 app.use(globalErrorHandler)
 
-
 // SERVER RUN --------------------------------------------
 const PORT = 5003;
 const server = app.listen(PORT, () => {
   logger.info({}, `App running on port... ${PORT}`)
 });
-
-
 
 // Unexpected Rejection Handling (Asynchronous) ----------
 process.on('unhandledRejection', (err: Error) => {

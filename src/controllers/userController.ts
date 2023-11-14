@@ -1,10 +1,10 @@
 import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
-import { Dto, ListDto } from '../classes/Dto';
-import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../classes/Errors";
+import { Dto, ListDto } from '../dtos/Dto';
+import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../dtos/Errors";
 import { decryptAES256 } from '../utils/crypto';
-import { checkRequireds, getValidatedIdx, isEmail, isSpecialOrBlank, respond, toArray, toMysqlDate } from '../utils/helper';
+import { checkRequireds, getValidIdx, isEmail, isSpecialOrBlank, respond, toArray, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 import { sendIssuedTokens } from './authController';
 const logger = pino({ level: 'debug' });
@@ -178,7 +178,7 @@ export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Resp
 
 export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // parse
-  const idx = getValidatedIdx(req);
+  const idx = getValidIdx(req);
 
   // exist check
   const foundUsers = await conn.query(`SELECT
@@ -212,7 +212,7 @@ export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Respo
 
 export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // parse
-  const idx = getValidatedIdx(req);
+  const idx = getValidIdx(req);
 
   // exist check
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is NULL`, idx);
@@ -228,7 +228,7 @@ export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Re
 })
 
 export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  const idx = getValidatedIdx(req);
+  const idx = getValidIdx(req);
 
   // exist check
   const users = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is null`, idx);

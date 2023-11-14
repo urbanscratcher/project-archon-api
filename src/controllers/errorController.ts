@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import pino from 'pino';
-import { InternalError, UnauthenticatedError } from "../classes/Errors";
+import { InternalError, UnauthenticatedError } from "../dtos/Errors";
 const logger = pino({ level: 'debug' });
 
 export default function globalErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {

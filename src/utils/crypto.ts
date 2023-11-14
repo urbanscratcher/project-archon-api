@@ -1,5 +1,5 @@
 import * as Crypto from 'crypto';
-import { UnprocessableError } from '../classes/Errors';
+import { UnprocessableError } from '../dtos/Errors';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env' })
 

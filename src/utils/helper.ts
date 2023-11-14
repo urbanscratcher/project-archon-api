@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { isArray, isObject, snakeCase, transform } from "lodash";
-import { BadRequestError } from "../classes/Errors";
+import { BadRequestError, UnauthenticatedError } from "../dtos/Errors";
 
 // Parsing ---------------------------------
 export function toArray(str: string) {
@@ -47,9 +47,18 @@ export function checkRequireds([...args]: Array<any>, [...names]: Array<string>)
   })
 }
 
-export function getValidatedIdx(req: Request) {
+export function getValidUserIdx(req: Request) {
+  const userIdx = req.userIdx ?? null;
+  if (userIdx === null || userIdx === undefined || !Number.isInteger(+userIdx)) {
+    throw new UnauthenticatedError(`user idx is not found`)
+  } else {
+    return userIdx;
+  }
+}
+
+export function getValidIdx(req: Request) {
   const idx = +req.params?.idx;
-  if (!Number.isInteger(+idx)) {
+  if (idx === null || idx === undefined || !Number.isInteger(+idx)) {
     throw new BadRequestError(`idx is irregular value`)
   } else {
     return idx;

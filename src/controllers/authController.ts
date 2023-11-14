@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { CookieOptions, NextFunction, Request, Response } from 'express';
-import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnauthorizedError } from '../classes/Errors';
+import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnauthorizedError } from '../dtos/Errors';
 import { asyncHandledDB } from '../utils/connectDB';
 import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, isEmail, respond } from '../utils/helper';
@@ -129,7 +129,7 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
 
   // verify tokens
   const decoded: any = await verifyAccessToken(token);
-  if (Number.isInteger(+decoded?.idx) || Number.isInteger(+decoded?.iat)) {
+  if (!Number.isInteger(+decoded?.idx) || !Number.isInteger(+decoded?.iat)) {
     throw new UnauthenticatedError('no idx and expiry date');
   }
 
