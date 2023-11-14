@@ -3,10 +3,10 @@ import pino from 'pino';
 import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
+import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
 import { checkRequireds, getValidIdx, getValidUserIdx, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
-const BASIC_INSIGHTS_LIMIT = 3;
 
 class InsightDto extends Dto {
   idx: number;

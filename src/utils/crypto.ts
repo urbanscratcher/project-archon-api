@@ -1,32 +1,26 @@
 import * as Crypto from 'crypto';
 import { UnprocessableError } from '../dtos/Errors';
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env' })
+import { AES_SECRET, BUFFER_ENCRYPTION, ENCRYPTION_ENCODING, ENCRYPTION_TYPE } from './constants';
 
-
-const bufferEncryption = 'utf8';
-const encryptionType = 'aes-256-cbc';
-const encryptionEncoding = 'base64';
-const secret = process.env?.AES_SECRET;
 
 export function encryptAES256(text: string) {
-  if (!secret) { throw new UnprocessableError('decryption error: secret not exist') }
+  if (!AES_SECRET) { throw new UnprocessableError('decryption error: secret not exist') }
 
-  const key: Buffer = Buffer.from(secret, bufferEncryption);
-  const iv: Buffer = Buffer.from(secret.slice(0, 16), bufferEncryption);
-  const cipher: Crypto.Cipher = Crypto.createCipheriv(encryptionType, key, iv);
-  let encrypted = cipher.update(text, bufferEncryption, encryptionEncoding);
-  encrypted += cipher.final(encryptionEncoding);
+  const key: Buffer = Buffer.from(AES_SECRET, BUFFER_ENCRYPTION);
+  const iv: Buffer = Buffer.from(AES_SECRET.slice(0, 16), BUFFER_ENCRYPTION);
+  const cipher: Crypto.Cipher = Crypto.createCipheriv(ENCRYPTION_TYPE, key, iv);
+  let encrypted = cipher.update(text, BUFFER_ENCRYPTION, ENCRYPTION_ENCODING);
+  encrypted += cipher.final(ENCRYPTION_ENCODING);
   return encrypted;
 }
 
 export function decryptAES256(text: string) {
-  if (!secret) { throw new UnprocessableError(`decryption error: secret not exist ${secret}`) }
+  if (!AES_SECRET) { throw new UnprocessableError(`decryption error: secret not exist ${AES_SECRET}`) }
 
-  const key: Buffer = Buffer.from(secret, bufferEncryption);
-  const iv: Buffer = Buffer.from(secret.slice(0, 16), bufferEncryption);
-  const cipher: Crypto.Decipher = Crypto.createDecipheriv(encryptionType, key, iv);
-  let decrypted = cipher.update(text, encryptionEncoding, bufferEncryption);
-  decrypted += cipher.final(bufferEncryption);
+  const key: Buffer = Buffer.from(AES_SECRET, BUFFER_ENCRYPTION);
+  const iv: Buffer = Buffer.from(AES_SECRET.slice(0, 16), BUFFER_ENCRYPTION);
+  const cipher: Crypto.Decipher = Crypto.createDecipheriv(ENCRYPTION_TYPE, key, iv);
+  let decrypted = cipher.update(text, ENCRYPTION_ENCODING, BUFFER_ENCRYPTION);
+  decrypted += cipher.final(BUFFER_ENCRYPTION);
   return decrypted;
 }

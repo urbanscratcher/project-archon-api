@@ -4,7 +4,7 @@ import { InternalError, UnauthenticatedError } from "../dtos/Errors";
 const logger = pino({ level: 'debug' });
 
 export default function globalErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-  // only in dev
+  // only in dev     
   console.log('-------------------');
   console.log(err);
   console.log('-------------------');

@@ -2,9 +2,10 @@ import bcrypt from 'bcrypt';
 import { CookieOptions, NextFunction, Request, Response } from 'express';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnauthorizedError } from '../dtos/Errors';
 import { asyncHandledDB } from '../utils/connectDB';
+import { JWT_ACCESS_EXPIRES_IN } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, isEmail, respond } from '../utils/helper';
-import { createAccessToken, createRefreshToken, jwtAccessExpiresIn, verifyAccessToken, verifyRefreshToken } from '../utils/manageJwt';
+import { createAccessToken, createRefreshToken, verifyAccessToken, verifyRefreshToken } from '../utils/manageJwt';
 
 export const verifyEmail = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
@@ -63,7 +64,7 @@ export const signIn = asyncHandledDB(async (conn: any, req: Request, res: Respon
 })
 
 export const sendIssuedTokens = (res: Response, user: any) => {
-  const toMs = (str: string) => {
+  const toMiliSec = (str: string) => {
     switch (str.slice(-1)) {
       case 's':
         return +str.slice(0, str.length - 1) * 1000;
@@ -78,7 +79,7 @@ export const sendIssuedTokens = (res: Response, user: any) => {
     }
   }
   const cookieOptions: CookieOptions = {
-    expires: new Date(Date.now() + toMs(jwtAccessExpiresIn)),
+    expires: new Date(Date.now() + toMiliSec(JWT_ACCESS_EXPIRES_IN)),
     httpOnly: true
   }
 

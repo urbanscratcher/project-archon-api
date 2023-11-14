@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { authenticate, authorize } from '../controllers/authController';
 import { createCover, getAllCovers, removeCover, updateCover } from '../controllers/coverController';
-import { ROLE } from '../controllers/userController';
+import { ROLE } from '../utils/constants';
 
 export const coverRouter: Router = express.Router();
 

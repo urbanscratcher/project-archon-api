@@ -3,18 +3,12 @@ import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../dtos/Errors";
+import { ROLE } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
 import { checkRequireds, getValidIdx, isEmail, isSpecialOrBlank, respond, toArray, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 import { sendIssuedTokens } from './authController';
 const logger = pino({ level: 'debug' });
-
-export enum ROLE {
-  ADMIN = 'admin',
-  EDITOR = 'editor',
-  WRITER = 'writer',
-  USER = 'user'
-}
 
 class UserDto extends Dto {
   idx: number;

@@ -2,11 +2,10 @@ import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
+import { BASIC_COVERS_LIMIT } from '../utils/constants';
 import { getValidIdx, getValidUserIdx, respond, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 const logger = pino({ level: 'debug' });
-
-const BASIC_COVERS_LIMIT = 3;
 
 
 export const createCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {

@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { authenticate, authorize } from '../controllers/authController';
 import { createInsight, deleteInsight, getInsight, getInsights, updateInsight } from '../controllers/insightController';
-import { ROLE } from '../controllers/userController';
+import { ROLE } from '../utils/constants';
 
 export const insightRouter: Router = express.Router();
 
