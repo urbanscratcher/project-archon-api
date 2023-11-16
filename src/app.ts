@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import pino from 'pino';
+import cors from 'cors';
 import globalErrorHandler from './controllers/errorController';
 import { NotFoundError } from "./dtos/Errors";
 import { authRouter } from './routers/authRoutes';
@@ -12,7 +13,7 @@ import { coverRouter } from './routers/coverRoutes';
 import { insightRouter } from './routers/insightRoutes';
 import { topicRouter } from './routers/topicRoutes';
 import { userRouter } from './routers/userRoutes';
-import { PORT } from './utils/constants';
+import { PORT, ORIGIN } from './utils/constants';
 const { xss } = require('express-xss-sanitizer')
 
 // ENV SETTING ------------------------------------------
@@ -31,6 +32,9 @@ process.on('uncaughtException', (err: Error) => {
 const app = express();
 
 // GLOBAL MIDDLEWARES ------------------------------------
+// Set CORS
+app.use(cors({ origin: ORIGIN, credentials: true }));
+
 // Set security HTTP headers
 app.use(helmet());
 
