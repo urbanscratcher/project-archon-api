@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { isArray, isObject, snakeCase, transform } from "lodash";
+import { camelCase, isArray, isObject, snakeCase, transform } from "lodash";
 import { BadRequestError, UnauthenticatedError } from "../dtos/Errors";
+import { Filter } from '../dtos/query';
 
 // Parsing ---------------------------------
 export function toArray(str: string) {
@@ -21,27 +22,94 @@ export function toMysqlDate(date?: Date): string {
   return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
 }
 
+export function toCamelCase(obj: any) {
+  return transform(obj, (acc: any, value: any, key: any, target: any) => {
+    const snakeKey = isArray(target) ? key : camelCase(key);
+    acc[snakeKey] = isObject(value) ? toCamelCase(value) : value;
+  });
+}
 
-function toSnakeCase(obj: any) {
+
+export function toSnakeCase(obj: any) {
   return transform(obj, (acc: any, value: any, key: any, target: any) => {
     const camelKey = isArray(target) ? key : snakeCase(key);
     acc[camelKey] = isObject(value) ? toSnakeCase(value) : value;
   });
 }
 
-export function parseOrderQuery(str: string, allowedFields: string[]) {
-  const isDescending: boolean = str.slice(0, 1) === '-' ? true : false;
-  const orderStr = isDescending ? 'DESC' : 'ASC';
-  const inputField = isDescending ? str.slice(1, str.length) : str;
+// Parse sorts queries to SQL strings
+export function toSortsSql(inputArr: string[] | undefined, allowed: string[]) {
+  const res = inputArr?.map((v) => toSortSql(v, allowed));
+  return res && res.length > 0 ? res : undefined
+}
+
+// Parse sort query to SQL string
+export function toSortSql(input: string, allowedFields: string[]): string {
+  const isDescending: boolean = input.slice(0, 1) === '-' ? true : false;
+  const direction = isDescending ? 'DESC' : 'ASC';
+  const field = isDescending ? input.slice(1, input.length) : input;
 
   // whitelist check
-  const isAllowed = allowedFields.includes(inputField);
+  const isAllowed = allowedFields.includes(field);
 
   if (!isAllowed) {
     throw new BadRequestError('proper order query needed');
   }
 
-  return `${inputField} ${orderStr}`
+  return `${field} ${direction}`
+}
+
+// Parse filter query
+function parseFilters(input: {}, allowedFields: string[]): Filter[] {
+
+  // whitelist check
+  const isAllAllowed = Object.keys(input).every((k) => allowedFields.includes(k));
+
+  if (!isAllAllowed) {
+    throw new BadRequestError('proper filter query needed');
+  }
+
+  // parse
+  let parsedFilters: Filter[] = [];
+  for (const [k, v] of Object.entries(input)) {
+    const values = (v as string).split(':');
+
+    const hasOperator = values.length > 1;
+    const operator = hasOperator ? values[0] : 'is';
+    const value = hasOperator ? values[1] : values[0];
+
+    parsedFilters.push({ field: k, operator, value });
+  }
+
+  return parsedFilters;
+}
+
+function makeFilterSql(filters: Filter[]) {
+  const filterSqls: string[] = filters.map((f) => {
+    let operatorStr = f.operator;
+    let valueStr = f.value;
+
+    if (f.operator === 'like') {
+      valueStr = `%${f.value}%`
+    }
+
+    if (f.operator === 'is') {
+      operatorStr = '=';
+    }
+
+    return `${f.field} ${operatorStr} '${valueStr}'`
+  })
+
+  const filterAndSql = filterSqls.join(' AND ');
+
+  return filterAndSql;
+}
+
+export function toFilterSql(input: {}, allowedFields: string[]) {
+  const filters: Filter[] = parseFilters(input, allowedFields);
+  const filterSql = makeFilterSql(filters);
+  return filterSql;
+
 }
 
 
@@ -72,6 +140,22 @@ export function getValidIdx(req: Request) {
   }
 }
 
+
+// for zod refinement
+export const isNotSpecialOrBlank = (inputStr: string) =>
+  inputStr.search(/\s|\W/g) <= -1;
+
+export const isNoSpecialOrBlankMessage = { message: 'blank or special character should not be included' }
+
+export const isEmailType = (emailStr: string) => {
+  const regEx = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+  return regEx.test(emailStr);
+}
+
+export const isEmailMessage = { message: 'invalid format' }
+
+
+// general
 export const isSpecialOrBlank = (inputStr: string) => {
   if (inputStr.search(/\W|\s/g) > -1) {
     throw new BadRequestError('special characters or blank should not be included')

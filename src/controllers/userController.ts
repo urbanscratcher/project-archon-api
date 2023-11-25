@@ -1,19 +1,21 @@
 import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
+import { z } from 'zod';
 import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../dtos/Errors";
+import { QueryReqSchema } from '../dtos/query';
 import { ROLE } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
-import { checkRequireds, getValidIdx, isEmail, isSpecialOrBlank, respond, toArray, toMysqlDate } from '../utils/helper';
+import { getValidIdx, isEmailMessage, isEmailType, isNoSpecialOrBlankMessage, isNotSpecialOrBlank, isSpecialOrBlank, toSortsSql, respond, toArray, toCamelCase, toFilterSql, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
+import { BASIC_USERS_LIMIT } from './../utils/constants';
 import { sendIssuedTokens } from './authController';
 const logger = pino({ level: 'debug' });
 
 class UserDto extends Dto {
   idx: number;
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   role: ROLE;
@@ -28,7 +30,6 @@ class UserDto extends Dto {
     super();
     this.idx = obj[0].idx;
     this.email = obj[0].email;
-    this.password = obj[0].password;
     this.firstName = obj[0].first_name;
     this.lastName = obj[0].last_name;
     this.role = obj[0].role;
@@ -47,39 +48,49 @@ class UserDto extends Dto {
   }
 }
 
+export const ROLES = ['admin', 'editor', 'writer', 'user'] as const;
+
+const UserReqSchema = z.object({
+  email: z.string().refine(isEmailType, isEmailMessage),
+  password: z.string(),
+  password_confirm: z.string(),
+  first_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage),
+  last_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage),
+  role: z.enum(ROLES).optional(),
+  avatar: z.string().optional(),
+  job_title: z.string().optional(),
+  biography: z.string().optional(),
+  careers: z.string().transform
+    (val => toArray(val)).optional(),
+  topics: z.string().transform(val => toArray(val)).optional(),
+})
+  .transform((data) => toCamelCase(data))
+export type UserType = z.infer<typeof UserReqSchema>;
+
+
+const UserDBSchema = z.object({
+  idx: z.number(),
+  email: z.string(),
+  password: z.string().transform(val => undefined),
+  first_name: z.string(),
+  last_name: z.string(),
+  role: z.enum(ROLES).optional(),
+  avatar: z.string().optional(),
+  job_title: z.string().optional(),
+  biography: z.string().optional(),
+})
+
+
 export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-
-  // parsing
-  const { email, password, first_name: firstName, last_name: lastName, password_confirm: passwordConfirm } = req.body;
-  const role: ROLE | null = req.body?.role || null;
-  const avatar = req.body?.avatar || null;
-  const jobTitle = req.body?.job_title || null;
-  const biography = req.body?.biography || null;
-  const careers = req.body?.careers ? toArray(req.body?.careers) : null;
-  const topics = req.body?.topics ? toArray(req.body?.topics) : null;
-
-
-  // required check
-  checkRequireds([email, password, passwordConfirm, firstName, lastName], ['email', 'password', 'password_confirm', 'first_name', 'last_name'])
-
-  // validation check
-  isSpecialOrBlank(firstName);
-  isSpecialOrBlank(lastName);
-  isEmail(email);
-
-
-  // role check
-  if (role && !(role === ROLE.USER || role === ROLE.ADMIN || role === ROLE.EDITOR || role === ROLE.WRITER)) {
-    throw new BadRequestError('role is not valid')
-  }
+  const user = UserReqSchema.parse(req.body)
 
   // password confirm check
-  if (password !== passwordConfirm) {
+  if (user.password !== user.passwordConfirm) {
     throw new UnauthenticatedError('password is not matched')
   }
 
   // email duplication check
-  const emails = await conn.query(`SELECT * FROM USER WHERE email = ?`, email);
+  const emails = await conn.query(`SELECT * FROM USER WHERE email = ? AND del_at is null`, user.email);
   if (emails.length > 0) {
     throw new DuplicationError('email already exists')
   }
@@ -87,7 +98,7 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   // AES256 decryption
   let decryptedPassword = '';
   try {
-    decryptedPassword = decryptAES256(password);
+    decryptedPassword = decryptAES256(user.password);
   } catch (e: any) {
     e.message = 'decryption error'
     next(e)
@@ -112,16 +123,16 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
     , biography = ?
     , careers = ?
     , created_at = ?`,
-      [email, hashedPassword, firstName, lastName,
-        role ?? ROLE.USER,
-        avatar, jobTitle, biography,
-        careers ? "'" + JSON.stringify(careers) + "'" : null, toMysqlDate()
+      [user.email, hashedPassword, user.firstName, user.lastName,
+      user.role ?? ROLE.USER,
+      user.avatar, user.jobTitle, user.biography,
+      user.careers ? "'" + JSON.stringify(user.careers) + "'" : null, toMysqlDate()
       ]);
     logger.debug({ res: result }, 'DB response');
     const insertedIdx = Number(result.insertId);
 
-    if (topics) {
-      for (const topicIdx of topics) {
+    if (user.topics) {
+      for (const topicIdx of user.topics) {
         const topic = await conn.query(`SELECT * FROM TOPIC WHERE idx = ?`, topicIdx);
 
         if (topic.length <= 0) {
@@ -129,7 +140,7 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
         }
       }
 
-      topics.forEach(async (topicIdx: number) => {
+      user.topics.forEach(async (topicIdx: number) => {
         const cateResult = await conn.query(`INSERT INTO USER_TOPIC (user_idx, topic_idx) values (?, ?)`, [insertedIdx, topicIdx]);
         logger.debug({ res: cateResult }, 'DB response');
       })
@@ -144,28 +155,47 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   }
 })
 
+
 export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+  // query transform
+  const query = QueryReqSchema(BASIC_USERS_LIMIT).parse(req.query)
+  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", 'first_name', 'last_name', "role", "created_at", "email"]);
+  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", 'first_name', 'last_name', "role", "email"])
+
   // DB
-  const foundUsers = await conn.query(`SELECT * FROM USER WHERE del_at is NULL`);
+  const foundUsers = await conn.query(`
+    SELECT
+      tt.total total, tb.*
+    FROM
+      ( SELECT COUNT(*) total FROM USER WHERE del_at is NULL ) tt,
+      ( 
+        SELECT * FROM USER
+        WHERE del_at is NULL
+        ${filterSql ? 'AND ' + filterSql : ''}
+        ORDER BY ${sortsSql ? sortsSql + ',' : ''} idx DESC
+        LIMIT ? OFFSET ?
+      ) tb  
+    `, [query.limit, query.offset]);
+  const total = foundUsers.length > 0 ? Number(foundUsers[0].total) : 0;
 
   // stringify
-  const users: Array<UserDto> = foundUsers.map((user: any) => new UserDto([user]));
+  const users: UserDto[] = foundUsers.map((user: any) => new UserDto([user]));
 
   const usersWithExtraInfo = [];
   for (let u of users) {
     const foundExtraInfo = await conn.query(`
-    SELECT
-      c.idx as idx,
-      c.name as name,
-      c.seq as seq
-    FROM USER_TOPIC uc
-    LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
-    WHERE user_idx = ?`, u.idx);
+        SELECT
+          c.idx as idx,
+          c.name as name,
+          c.seq as seq
+        FROM USER_TOPIC uc
+        LEFT JOIN TOPIC c ON uc.topic_idx  = c.idx
+        WHERE user_idx = ?`, u.idx);
     u.topics = foundExtraInfo.length > 0 ? foundExtraInfo : undefined;
     usersWithExtraInfo.push(u);
   }
 
-  const userList: ListDto<any> = new ListDto(usersWithExtraInfo, usersWithExtraInfo.length)
+  const userList: ListDto<any> = new ListDto(usersWithExtraInfo, total, query.offset, query.limit)
 
   respond(res, 200, userList);
 })

@@ -23,6 +23,7 @@ export const JWT_REFRESH_SECRET = process.env?.JWT_REFRESH_SECRET ?? '';
 export const JWT_REFRESH_EXPIRES_IN = process.env?.JWT_REFRESH_EXPIRES_IN ?? '14d';
 export const BASIC_COVERS_LIMIT = 3;
 export const BASIC_INSIGHTS_LIMIT = 10;
+export const BASIC_USERS_LIMIT = 5;
 
 export enum ROLE {
   ADMIN = 'admin',

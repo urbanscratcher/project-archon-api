@@ -4,7 +4,7 @@ import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
 import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
-import { checkRequireds, getValidIdx, getValidUserIdx, parseOrderQuery, respond, toMysqlDate } from '../utils/helper';
+import { checkRequireds, getValidIdx, getValidUserIdx, toSortSql, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 
@@ -73,12 +73,13 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
+
   const offset = req.query?.offset ? +req.query.offset : 0;
   const limit = req.query?.limit ? +req.query.limit : BASIC_INSIGHTS_LIMIT;
   const order = req.query?.order;
   const filter = req.query?.filter;
   const parsedFilter = filter ? (typeof filter === 'string' && filter !== null && JSON.parse(filter)) : null;
-  const parsedOrder = order ? (typeof order === 'string' && order !== null && parseOrderQuery(order, ['created_at'])) : null;
+  const parsedOrder = order ? (typeof order === 'string' && order !== null && toSortSql(order, ['created_at'])) : null;
 
   // type check
   if (!Number.isInteger(offset) || !Number.isInteger(limit)) {
