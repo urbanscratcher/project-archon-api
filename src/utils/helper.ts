@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { camelCase, isArray, isObject, snakeCase, transform } from "lodash";
 import { BadRequestError, UnauthenticatedError } from "../dtos/Errors";
-import { Filter } from '../dtos/query';
+import { Filter } from '../dtos/Query';
 
 // Parsing ---------------------------------
 export function toArray(str: string) {
