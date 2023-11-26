@@ -68,19 +68,6 @@ const UserReqSchema = z.object({
 export type UserType = z.infer<typeof UserReqSchema>;
 
 
-const UserDBSchema = z.object({
-  idx: z.number(),
-  email: z.string(),
-  password: z.string().transform(val => undefined),
-  first_name: z.string(),
-  last_name: z.string(),
-  role: z.enum(ROLES).optional(),
-  avatar: z.string().optional(),
-  job_title: z.string().optional(),
-  biography: z.string().optional(),
-})
-
-
 export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const user = UserReqSchema.parse(req.body)
 
@@ -160,18 +147,23 @@ export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Resp
   // query transform
   const query = QueryReqSchema(BASIC_USERS_LIMIT).parse(req.query)
   const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", 'first_name', 'last_name', "role", "created_at", "email"]);
-  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", 'first_name', 'last_name', "role", "email"])
+  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", 'first_name', 'last_name', "role", "email"]);
+
+  logger.debug(filterSql)
 
   // DB
   const foundUsers = await conn.query(`
     SELECT
       tt.total total, tb.*
     FROM
-      ( SELECT COUNT(*) total FROM USER WHERE del_at is NULL ) tt,
+      ( SELECT count(*) total FROM USER
+        WHERE del_at is NULL
+        ${filterSql ? `AND ${filterSql}` : ''}
+      ) tt,
       ( 
         SELECT * FROM USER
         WHERE del_at is NULL
-        ${filterSql ? 'AND ' + filterSql : ''}
+        ${filterSql ? `AND ${filterSql}` : ''}
         ORDER BY ${sortsSql ? sortsSql + ',' : ''} idx DESC
         LIMIT ? OFFSET ?
       ) tb  

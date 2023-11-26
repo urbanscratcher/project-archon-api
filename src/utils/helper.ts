@@ -59,56 +59,85 @@ export function toSortSql(input: string, allowedFields: string[]): string {
   return `${field} ${direction}`
 }
 
+type InputFilters = {
+  and?: Record<string, string>[]
+  or?: Record<string, string>[]
+}
+
+type ParsedFilters = {
+  and?: Filter[][],
+  or?: Filter[][]
+}
+
+
+
+function isFieldsAllowed(arr: Record<string, string>[], allowedFields: string[]) {
+  return arr.every((i) => {
+    return Object.keys(i).every((k) => allowedFields.includes(k));
+  })
+}
+
 // Parse filter query
-function parseFilters(input: {}, allowedFields: string[]): Filter[] {
+function parseFilters(input: InputFilters, allowedFields: string[]): ParsedFilters {
+
+  // for operator
+  allowedFields.push('or', 'and');
 
   // whitelist check
-  const isAllAllowed = Object.keys(input).every((k) => allowedFields.includes(k));
+  const orAllowed = input?.or ? isFieldsAllowed(input.or, allowedFields) : true;
+  const andAllowed = input?.and ? isFieldsAllowed(input.and, allowedFields) : true;
 
-  if (!isAllAllowed) {
+  if (!orAllowed || !andAllowed) {
     throw new BadRequestError('proper filter query needed');
   }
 
-  // parse
-  let parsedFilters: Filter[] = [];
-  for (const [k, v] of Object.entries(input)) {
-    const values = (v as string).split(':');
+  const parseFilter = (filterObj: {}): Filter[] => {
+    let filters: Filter[] = []
+    for (const [k, v] of Object.entries(filterObj)) {
+      const values = (v as string).split(':');
 
-    const hasOperator = values.length > 1;
-    const operator = hasOperator ? values[0] : 'is';
-    const value = hasOperator ? values[1] : values[0];
+      const hasOperator = values.length > 1;
+      const operator = hasOperator ? values[0] : '=';
+      const value = hasOperator ? values[1] : values[0];
 
-    parsedFilters.push({ field: k, operator, value });
+      filters.push({ field: k, operator, value });
+    }
+    return filters
   }
 
-  return parsedFilters;
+  return {
+    and: input?.and ? input?.and.map((arr) => parseFilter(arr)) : undefined,
+    or: input?.or ? input?.or.map((arr) => parseFilter(arr)) : undefined
+  }
 }
 
-function makeFilterSql(filters: Filter[]) {
-  const filterSqls: string[] = filters.map((f) => {
-    let operatorStr = f.operator;
-    let valueStr = f.value;
+function makeFilterSql(parsedFilters: ParsedFilters) {
+  const makeSql = (filters: Filter[], operator: "AND" | "OR") => {
+    return filters ? "(" + filters.map((f: Filter) => {
+      let operatorStr = f.operator;
+      let valueStr = f.value;
 
-    if (f.operator === 'like') {
-      valueStr = `%${f.value}%`
-    }
+      if (f.operator === 'like') {
+        valueStr = `%${f.value}%`
+      }
+      return `${f.field} ${operatorStr} '${valueStr}'`
+    }).join(` ${operator} `) + ")" : '';
+  }
 
-    if (f.operator === 'is') {
-      operatorStr = '=';
-    }
+  const andSqls = parsedFilters?.and ? parsedFilters?.and.map((f) => makeSql(f, 'AND')) : undefined;
+  const orSqls = parsedFilters?.or ? parsedFilters?.or.map((f) => makeSql(f, 'OR')) : undefined;
 
-    return `${f.field} ${operatorStr} '${valueStr}'`
-  })
-
-  const filterAndSql = filterSqls.join(' AND ');
-
-  return filterAndSql;
+  const sqlArr = []
+  if (andSqls) sqlArr.push("(" + andSqls.join(' OR ') + ")");
+  if (orSqls) sqlArr.push("(" + orSqls.join(' AND ') + ")");
+  const sql = sqlArr.join(' AND ')
+  return sql;
 }
 
-export function toFilterSql(input: {}, allowedFields: string[]) {
-  const filters: Filter[] = parseFilters(input, allowedFields);
-  const filterSql = makeFilterSql(filters);
-  return filterSql;
+export function toFilterSql(input: {}, allowedFields: string[]): string {
+  const parsedFilters = parseFilters(input, allowedFields);
+  const filterSqls = makeFilterSql(parsedFilters);
+  return filterSqls;
 
 }
 

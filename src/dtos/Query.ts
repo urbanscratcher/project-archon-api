@@ -9,6 +9,6 @@ export const QueryReqSchema = (baseLimit: number = 10) => z.object({
 
 export type Filter = {
   field: string,
-  operator: 'is' | 'like' | unknown,
+  operator: '=' | 'like' | unknown,
   value: string
 }
