@@ -129,7 +129,7 @@ function makeFilterSql(parsedFilters: ParsedFilters) {
 
   const sqlArr = []
   if (andSqls) sqlArr.push("(" + andSqls.join(' OR ') + ")");
-  if (orSqls) sqlArr.push("(" + orSqls.join(' AND ') + ")");
+  if (orSqls) sqlArr.push("(" + orSqls.join(' OR ') + ")");
   const sql = sqlArr.join(' AND ')
   return sql;
 }
