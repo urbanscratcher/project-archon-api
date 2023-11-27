@@ -1,13 +1,13 @@
 import bcrypt from 'bcrypt';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
-import { z } from 'zod';
 import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError, UnauthenticatedError, UnprocessableError } from "../dtos/Errors";
 import { QueryReqSchema } from '../dtos/Query';
+import { UserReqSchema, UserUpdateSchema } from '../schemas/userSchema';
 import { ROLE } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
-import { getValidIdx, isEmailMessage, isEmailType, isNoSpecialOrBlankMessage, isNotSpecialOrBlank, isSpecialOrBlank, respond, toArray, toCamelCase, toFilterSql, toMysqlDate, toSortsSql } from '../utils/helper';
+import { getValidIdx, respond, toFilterSql, toMysqlDate, toSortsSql } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 import { BASIC_USERS_LIMIT } from './../utils/constants';
 import { sendIssuedTokens } from './authController';
@@ -47,26 +47,6 @@ class UserDto extends Dto {
     }) : undefined;
   }
 }
-
-export const ROLES = ['admin', 'editor', 'writer', 'user'] as const;
-
-const UserReqSchema = z.object({
-  email: z.string().refine(isEmailType, isEmailMessage),
-  password: z.string(),
-  password_confirm: z.string(),
-  first_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage),
-  last_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage),
-  role: z.enum(ROLES).optional(),
-  avatar: z.string().optional(),
-  job_title: z.string().optional(),
-  biography: z.string().optional(),
-  careers: z.string().transform
-    (val => toArray(val)).optional(),
-  topics: z.string().transform(val => toArray(val)).optional(),
-})
-  .transform((data) => toCamelCase(data))
-export type UserType = z.infer<typeof UserReqSchema>;
-
 
 export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const user = UserReqSchema.parse(req.body)
@@ -246,59 +226,46 @@ export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Re
 export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const idx = getValidIdx(req);
 
+  const newUser = UserUpdateSchema.parse(req.body);
+
   // exist check
   const users = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is null`, idx);
   if (users.length <= 0) {
     throw new NotFoundError('user not found')
   }
-  const user = users[0];
-
-  // parse
-  const pastPassword = req.body?.past_password ?? null;
-  const newPassword = req.body?.password ?? null;
-  const newPasswordConfirm = req.body?.password_confirm ?? null;
-  const firstName = req.body?.first_name ?? null;
-  const lastName = req.body?.last_name ?? null;
-  const avatar = req.body?.avatar ?? null;
-  const jobTitle = req.body?.job_title ?? null;
-  const biography = req.body?.biography ?? null;
-  const careers = req.body?.careers ? toArray(req.body.careers) : null;
-  const topics = req.body?.topics ? toArray(req.body.topics) : null;
+  const oldUser = users[0];
 
   // password required check
-  if ((pastPassword || newPassword || newPasswordConfirm) && !(pastPassword && newPassword && newPasswordConfirm)) {
+  if ((newUser.pastPassword || newUser.newPassword || newUser.newPasswordConfirm) && !(newUser.pastPassword && newUser.newPassword && newUser.newPasswordConfirm)) {
     throw new BadRequestError('all password info(past password, new password, new password confirm) required')
   }
 
-  // validation check
-  firstName && isSpecialOrBlank(firstName);
-  lastName && isSpecialOrBlank(lastName);
 
   let decryptedNewPassword = '';
-  if (pastPassword && newPassword && newPasswordConfirm) {
+  if (newUser.pastPassword && newUser.newPassword && newUser.newPasswordConfirm) {
     // decrypt past password    
     let decryptedPastPassword = '';
     try {
-      decryptedPastPassword = decryptAES256(pastPassword);
-      decryptedNewPassword = decryptAES256(newPassword);
+      decryptedPastPassword = decryptAES256(newUser.pastPassword);
+      decryptedNewPassword = decryptAES256(newUser.newPassword);
     } catch (e: any) {
       e.message = 'decryption error';
       next(e);
     }
 
     // compare
-    const isMatched = await bcrypt.compare(decryptedPastPassword, user.password);
+    const isMatched = await bcrypt.compare(decryptedPastPassword, oldUser.password);
     if (!isMatched) {
       throw new UnprocessableError('passwords are not matched with the past one. cannot be updated');
     }
 
     // password confirm check
-    if (newPassword !== newPasswordConfirm) {
+    if (newUser.newPassword !== newUser.newPasswordConfirm) {
       throw new BadRequestError('password should be confirmed correctly')
     }
 
     // past password should not be the same
-    if (pastPassword === newPassword) {
+    if (newUser.pastPassword === newUser.newPassword) {
       throw new DuplicationError('new password should not be the same with the existing one')
     }
   }
@@ -317,32 +284,34 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
       biography = ?,
       password = ?,
       careers = ?,
+      role = ?,
       password_updated_at = ?,      
-      updated_at = ?
+      updated_at = ?      
     WHERE idx = ?`,
       [
-        firstName ?? user.first_name,
-        lastName ?? user.last_name,
-        avatar ?? user.avatar,
-        jobTitle ?? user.job_title,
-        biography ?? user.biography,
-        hashedPassword ?? user.password,
-        careers ?
-          careers.length > 0 ? JSON.stringify(careers) : null
-          : user.careers,
+        newUser.firstName ?? oldUser.first_name,
+        newUser.lastName ?? oldUser.last_name,
+        newUser.avatar ?? oldUser.avatar,
+        newUser.jobTitle ?? oldUser.job_title,
+        newUser.biography ?? oldUser.biography,
+        hashedPassword ?? oldUser.password,
+        newUser.careers ?
+          newUser.careers.length > 0 ? JSON.stringify(newUser.careers) : null
+          : oldUser.careers,
+        newUser.role ?? oldUser.role,
         hashedPassword ? now : null,
         now,
         idx
       ])
   }
 
-  if (!topics) {
+  if (!newUser.topics) {
     await updateUser();
   }
 
-  if (topics) {
+  if (newUser.topics) {
     // topic exist check  
-    for (const topicIdx of topics) {
+    for (const topicIdx of newUser.topics) {
       const topics = await conn.query(`SELECT idx FROM TOPIC WHERE idx = ?`, topicIdx);
       if (topics.length <= 0) {
         throw new BadRequestError('topic not exist')
@@ -353,7 +322,7 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
     try {
       await conn.beginTransaction();
       await conn.query(`DELETE FROM USER_TOPIC WHERE user_idx = ?`, idx)
-      for (const topicIdx of topics) {
+      for (const topicIdx of newUser.topics) {
         await conn.query(`INSERT INTO USER_TOPIC SET user_idx = ?, topic_idx = ?`, [idx, topicIdx])
       }
       await updateUser();
