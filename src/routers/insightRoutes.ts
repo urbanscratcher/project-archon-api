@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../controllers/authController';
 import { createInsight, deleteInsight, getInsight, getInsights, updateInsight } from '../controllers/insightController';
 import { ROLE } from '../utils/constants';
 
-export const insightRouter: Router = express.Router();
+const insightRouter: Router = express.Router();
 
 insightRouter
   .route('/')
@@ -11,7 +11,7 @@ insightRouter
     authenticate,
     authorize(ROLE.ADMIN, ROLE.WRITER),
     createInsight)
-  .get(getInsights)
+  .get(getInsights);
 
 insightRouter
   .route('/:idx')
@@ -23,4 +23,6 @@ insightRouter
   .delete(
     authenticate,
     authorize(ROLE.ADMIN, ROLE.WRITER),
-    deleteInsight)
+    deleteInsight);
+
+export default insightRouter;

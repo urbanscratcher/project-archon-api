@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import { authenticate } from '../controllers/authController';
 import { createUser, deleteUser, getUser, getUsers, updateUser } from '../controllers/userController';
 
-export const userRouter: Router = express.Router();
+const userRouter: Router = express.Router();
 
 userRouter
   .route('/')
@@ -15,3 +15,4 @@ userRouter
   .patch(authenticate, updateUser)
   .delete(authenticate, deleteUser)
 
+export default userRouter;

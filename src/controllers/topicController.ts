@@ -3,7 +3,7 @@ import pino from 'pino';
 import { ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
-import { checkRequireds, getValidIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
+import { checkRequireds, validateParamIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
@@ -52,7 +52,7 @@ export const updateTopic = asyncHandledDB(async (conn: any, req: Request, res: R
     throw new BadRequestError('name is required')
   }
 
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   if (!Number.isInteger(createdBy)) {
     throw new BadRequestError('user idx is required')
@@ -134,7 +134,7 @@ export const updateTopics = asyncHandledDB(async (conn: any, req: Request, res: 
 })
 
 export const removeTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   // check if exists
   const topics = await conn.query(`SELECT * FROM TOPIC WHERE idx = ?`, idx);

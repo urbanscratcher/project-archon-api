@@ -4,7 +4,7 @@ import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
 import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
-import { checkRequireds, getValidIdx, getValidUserIdx, toSortSql, respond, toMysqlDate } from '../utils/helper';
+import { checkRequireds, validateParamIdx, getValidUserIdx, toSortSql, respond, toMysqlDate } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 
@@ -138,7 +138,7 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
 })
 
 export const getInsight = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   const foundInsights = await conn.query(`SELECT
     i.idx as idx,
@@ -178,7 +178,7 @@ export const getInsight = asyncHandledDB(async (conn: any, req: Request, res: Re
 })
 
 export const deleteInsight = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ? AND del_at is null`, idx);
 
@@ -197,7 +197,7 @@ export const deleteInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
 export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   const editedBy = getValidUserIdx(req);
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   // insight exist check
   const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ? AND del_at is null`, idx);

@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { refreshTokens, signIn, verifyEmail } from '../controllers/authController';
 
-export const authRouter: Router = express.Router();
+const authRouter: Router = express.Router();
 
 authRouter
   .route('/')
@@ -14,5 +14,7 @@ authRouter
 authRouter
   .route('/refresh')
   .post(refreshTokens)
+
+export default authRouter;
 
 

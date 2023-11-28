@@ -3,7 +3,7 @@ import pino from 'pino';
 import { ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
 import { BASIC_COVERS_LIMIT } from '../utils/constants';
-import { getValidIdx, getValidUserIdx, respond, toMysqlDate } from '../utils/helper';
+import { validateParamIdx, getValidUserIdx, respond, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 const logger = pino({ level: 'debug' });
 
@@ -50,7 +50,7 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
 
 export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   // check if cover exists
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
@@ -99,7 +99,7 @@ export const updateCover = asyncHandledDB(async (conn: any, req: Request, res: R
 })
 
 export const removeCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   const covers = await conn.query(`SELECT * FROM COVER WHERE idx = ?`, idx);
   if (covers.length <= 0) {

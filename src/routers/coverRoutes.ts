@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../controllers/authController';
 import { createCover, getAllCovers, removeCover, updateCover } from '../controllers/coverController';
 import { ROLE } from '../utils/constants';
 
-export const coverRouter: Router = express.Router();
+const coverRouter: Router = express.Router();
 
 coverRouter
   .route('/')
@@ -24,3 +24,4 @@ coverRouter
     authorize(ROLE.ADMIN, ROLE.EDITOR),
     removeCover)
 
+export default coverRouter;

@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../controllers/authController';
 import { createTopic, getAllTopics, removeTopic, updateTopic, updateTopics } from '../controllers/topicController';
 import { ROLE } from '../utils/constants';
 
-export const topicRouter: Router = express.Router();
+const topicRouter: Router = express.Router();
 
 topicRouter
   .route('/')
@@ -25,4 +25,4 @@ topicRouter
     authorize(ROLE.ADMIN, ROLE.EDITOR),
     updateTopic)
 
-
+export default topicRouter;

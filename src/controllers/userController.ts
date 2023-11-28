@@ -7,7 +7,7 @@ import { QueryReqSchema } from '../dtos/Query';
 import { UserReqSchema, UserUpdateSchema } from '../schemas/userSchema';
 import { ROLE } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
-import { getValidIdx, respond, toFilterSql, toMysqlDate, toSortsSql } from '../utils/helper';
+import { validateParamIdx, respond, toFilterSql, toMysqlDate, toSortsSql } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 import { BASIC_USERS_LIMIT } from './../utils/constants';
 import { sendIssuedTokens } from './authController';
@@ -172,10 +172,7 @@ export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Resp
   respond(res, 200, userList);
 })
 
-export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-  // parse
-  const idx = getValidIdx(req);
-
+export const getUserDB = async (conn: any, idx: number): Promise<UserDto> => {
   // exist check
   const foundUsers = await conn.query(`SELECT
     u.idx as idx,
@@ -202,13 +199,17 @@ export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Respo
   }
 
   const user: UserDto = new UserDto(foundUsers);
+  return user;
+}
 
-  respond(res, 200, user);
+export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+  const idx = validateParamIdx(req);
+  respond(res, 200, getUserDB(conn, idx));
 })
 
 export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // parse
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   // exist check
   const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is NULL`, idx);
@@ -224,7 +225,7 @@ export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Re
 })
 
 export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  const idx = getValidIdx(req);
+  const idx = validateParamIdx(req);
 
   const newUser = UserUpdateSchema.parse(req.body);
 

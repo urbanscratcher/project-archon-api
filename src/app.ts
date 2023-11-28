@@ -1,19 +1,20 @@
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import express from "express";
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import pino from 'pino';
-import cors from 'cors';
 import globalErrorHandler from './controllers/errorController';
 import { NotFoundError } from "./dtos/Errors";
-import { authRouter } from './routers/authRoutes';
-import { coverRouter } from './routers/coverRoutes';
-import { insightRouter } from './routers/insightRoutes';
-import { topicRouter } from './routers/topicRoutes';
-import { userRouter } from './routers/userRoutes';
-import { PORT, ORIGIN } from './utils/constants';
+import authRouter from './routers/authRoutes';
+import coverRouter from './routers/coverRoutes';
+import insightRouter from './routers/insightRoutes';
+import meRouter from './routers/meRoutes';
+import topicRouter from './routers/topicRoutes';
+import userRouter from './routers/userRoutes';
+import { ORIGIN, PORT } from './utils/constants';
 const { xss } = require('express-xss-sanitizer')
 
 // ENV SETTING ------------------------------------------
@@ -74,6 +75,7 @@ app.use('/archon-api/v1/users', userRouter)
 app.use('/archon-api/v1/insights', insightRouter)
 app.use('/archon-api/v1/covers', coverRouter)
 app.use('/archon-api/v1/auth', authRouter)
+app.use('/archon-api/v1/me', meRouter)
 
 // Other Routes Handling
 app.all('*', (req, res, next) => {
