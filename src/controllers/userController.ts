@@ -126,10 +126,9 @@ export const createUser = asyncHandledDB(async (conn: any, req: Request, res: Re
 export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // query transform
   const query = QueryReqSchema(BASIC_USERS_LIMIT).parse(req.query)
-  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", 'first_name', 'last_name', "role", "created_at", "email"]);
   const filterSql = query?.filter && toFilterSql(query.filter, ["idx", 'first_name', 'last_name', "role", "email"]);
-
-  logger.debug(filterSql)
+  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", 'first_name', 'last_name', "role", "created_at", "email"]);
+  logger.debug(filterSql, sortsSql)
 
   // DB
   const foundUsers = await conn.query(`
@@ -144,7 +143,7 @@ export const getUsers = asyncHandledDB(async (conn: any, req: Request, res: Resp
         SELECT * FROM USER
         WHERE del_at is NULL
         ${filterSql ? `AND ${filterSql}` : ''}
-        ORDER BY ${sortsSql ? sortsSql + ',' : ''} idx DESC
+        ORDER BY ${sortsSql ? sortsSql : 'idx DESC'}
         LIMIT ? OFFSET ?
       ) tb  
     `, [query.limit, query.offset]);

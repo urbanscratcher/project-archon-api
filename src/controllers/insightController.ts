@@ -4,7 +4,8 @@ import { Dto, ListDto } from '../dtos/Dto';
 import { BadRequestError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
 import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
-import { checkRequireds, validateParamIdx, getValidUserIdx, toSortSql, respond, toMysqlDate } from '../utils/helper';
+import { checkRequireds, validateParamIdx, getValidUserIdx, toSortSql, respond, toMysqlDate, toFilterSql, toSortsSql } from '../utils/helper';
+import { QueryReqSchema } from '../dtos/Query';
 const logger = pino({ level: 'debug' });
 
 
@@ -73,32 +74,24 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
+  // query transform
+  const query = QueryReqSchema(BASIC_INSIGHTS_LIMIT).parse(req.query);
+  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", "title", "created_by", "topic_idx"])?.replace(/created_by/g, 'i.created_by');
+  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => s.replace(/created_by/g, 'i.created_by'));
+  logger.debug(filterSql, sortsSql)
 
-  const offset = req.query?.offset ? +req.query.offset : 0;
-  const limit = req.query?.limit ? +req.query.limit : BASIC_INSIGHTS_LIMIT;
-  const order = req.query?.order;
-  const filter = req.query?.filter;
-  const parsedFilter = filter ? (typeof filter === 'string' && filter !== null && JSON.parse(filter)) : null;
-  const parsedOrder = order ? (typeof order === 'string' && order !== null && toSortSql(order, ['created_at'])) : null;
-
-  // type check
-  if (!Number.isInteger(offset) || !Number.isInteger(limit)) {
-    throw new BadRequestError('offset, limit should be number');
-  }
-
-  // validation check
-  if (parsedFilter?.topic_idx && typeof parsedFilter.topic_idx !== 'number') {
-    throw new BadRequestError('topic_idx should be number')
-  }
-
-  if (parsedFilter?.created_by && typeof parsedFilter.created_by !== 'number') {
-    throw new BadRequestError('created_by should be number')
-  }
-
-
-  const insights = await conn.query(`
-  SELECT tb.*
+  // DB
+  const foundInsights = await conn.query(`
+  SELECT tt.total total, tb.*
   FROM (
+    SELECT count(*) total
+    FROM INSIGHT i
+    LEFT JOIN TOPIC t ON i.topic_idx = t.idx
+    LEFT JOIN USER u ON i.created_by = u.idx
+    WHERE i.del_at is null
+    ${filterSql ? `AND ${filterSql}` : ''}
+  ) tt,
+  (
     SELECT
       i.idx as idx,
       i.title as title,
@@ -116,23 +109,19 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
     LEFT JOIN TOPIC t ON i.topic_idx = t.idx
     LEFT JOIN USER u ON i.created_by = u.idx
     WHERE i.del_at is null
-    ${parsedFilter?.topic_idx ? 'AND i.topic_idx=' + parsedFilter?.topic_idx : ''}
-    ${parsedFilter?.created_by ? 'AND i.created_by=' + parsedFilter?.created_by : ''}
+    ${filterSql ? `AND ${filterSql}` : ''}
+    ORDER BY ${sortsSql ? sortsSql : 'idx DESC'}
+    LIMIT ? OFFSET ?
   ) tb
-  ORDER BY ${parsedOrder + ',' ?? ''} idx DESC
-  LIMIT ? OFFSET ?
-  `, [limit, offset])
+  `, [query.limit, query.offset])
 
-  const data = insights.map((i: any) => new InsightDto([i]))
+  const total = foundInsights.length > 0 ? Number(foundInsights[0].total) : 0;
 
-  const totalResult = await conn.query(`
-  SELECT count(*) as total
-  FROM INSIGHT
-  WHERE del_at is null
-  `)
-  const total = Number(totalResult[0].total);
+  // stringify
+  const insights = foundInsights.map((i: any) => new InsightDto([i]))
 
-  const insightList = new ListDto<InsightDto>(data, total, offset, limit);
+
+  const insightList = new ListDto<InsightDto>(insights, total, query.offset, query.limit);
 
   respond(res, 200, insightList)
 })

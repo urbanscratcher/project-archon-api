@@ -162,6 +162,7 @@ export function getValidUserIdx(req: Request) {
 
 export function validateParamIdx(req: Request) {
   const idx = +req.params?.idx;
+  console.log(idx);
   if (idx === null || idx === undefined || !Number.isInteger(+idx)) {
     throw new BadRequestError(`idx is irregular value`)
   } else {

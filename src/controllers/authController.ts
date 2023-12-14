@@ -124,6 +124,8 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
 
   const token = authorization.split(' ')[1]
 
+  console.log('token got', token);
+
   if (!token) {
     throw new UnauthenticatedError('tokens required')
   }
@@ -155,6 +157,11 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
   // grant access to protected route
   req.userIdx = idx;
   req.userRole = user.role;
+
+  if (!idx || idx < 0 || !user?.role) {
+    return new UnauthenticatedError('user not exists');
+  }
+
   next()
 })
 
