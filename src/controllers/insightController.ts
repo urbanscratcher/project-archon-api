@@ -76,8 +76,12 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
 
   // query transform
   const query = QueryReqSchema(BASIC_INSIGHTS_LIMIT).parse(req.query);
-  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", "title", "created_by", "topic_idx"])?.replace(/created_by/g, 'i.created_by');
-  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => s.replace(/created_by/g, 'i.created_by'));
+  const mapFields: Record<string, string> = {
+    created_by: 'i.created_by',
+    topic_idx: 'i.topic_idx'
+  }
+  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", "title", "created_by", "topic_idx"])?.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]);
+  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => s.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]));
   logger.debug(filterSql, sortsSql)
 
   // DB
