@@ -35,13 +35,12 @@ class InsightDto extends Dto {
       idx: obj[0].created_by,
       firstName: obj[0].created_first_name,
       lastName: obj[0].created_last_name,
-      avatar: obj[0].avatar,
-      biography: obj[0].biography,
+      avatar: obj[0].created_avatar,
+      biography: obj[0].created_biography,
       topics: obj.length > 1 ? obj.map((o: any) => {
         return {
-          idx: o.created_topic_idx,
-          seq: o.created_topic_seq,
-          name: o.created_topic_name
+          idx: o.topic_idx,
+          name: o.topic_name
         }
       }) : undefined
     }
@@ -73,7 +72,6 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 })
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-
   // query transform
   const query = QueryReqSchema(BASIC_INSIGHTS_LIMIT).parse(req.query);
   const mapFields: Record<string, string> = {
@@ -82,7 +80,6 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
   }
   const filterSql = query?.filter && toFilterSql(query.filter, ["idx", "title", "created_by", "topic_idx"])?.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]);
   const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => s.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]));
-  logger.debug(filterSql, sortsSql)
 
   // DB
   const foundInsights = await conn.query(`
@@ -106,6 +103,7 @@ export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: R
       i.created_at as created_at,
       i.created_by as created_by,
       u.avatar as created_avatar,  	
+      u.biography as created_biography,
       u.first_name as created_first_name,
       u.last_name as created_last_name,
       i.edited_at as edited_at

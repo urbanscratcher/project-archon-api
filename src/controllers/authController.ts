@@ -124,7 +124,6 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
 
   const token = authorization.split(' ')[1]
 
-  console.log('token got', token);
 
   if (!token) {
     throw new UnauthenticatedError('tokens required')
