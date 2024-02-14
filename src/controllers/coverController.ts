@@ -1,31 +1,36 @@
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { ListDto } from '../dtos/Dto';
-import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
+import { BadRequestError, DuplicationError, NotFoundError, UnprocessableError } from "../dtos/Errors";
 import { BASIC_COVERS_LIMIT } from '../utils/constants';
 import { validateParamIdx, getValidUserIdx, respond, toMysqlDate } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
+import { CoverReqSchema } from '../schemas/coverSchema';
 const logger = pino({ level: 'debug' });
 
 
 export const createCover = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const createdBy = getValidUserIdx(req);
-  const insightIdx = req.body?.insight_idx
+  const coverReq = CoverReqSchema.safeParse(req.body);
+  if (!coverReq.success) throw new BadRequestError(
+    'req body is not valid'
+  );
+  const insightIdx = coverReq.data.insightIdx;
 
-  if (insightIdx === undefined || insightIdx === null) {
-    throw new BadRequestError('insight idx is required and should be a number')
+  // when exceeds limit
+  const totalCovers = await conn.query(`SELECT count(*) as total FROM COVER`);
+  const totalNumber = Number(totalCovers[0].total);
+  if (totalNumber >= BASIC_COVERS_LIMIT) {
+    throw new UnprocessableError('cover limit exceeded')
   }
 
-  if (!Number.isInteger(insightIdx)) {
-    throw new BadRequestError('insight idx should be a number')
-  }
-
-
+  // when not found
   const insights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ?`, insightIdx);
   if (insights.length <= 0) {
     throw new NotFoundError('insight not found')
   }
 
+  // when duplicated
   const existingCovers = await conn.query(`SELECT * FROM COVER WHERE insight_idx = ?`, insightIdx);
   if (existingCovers.length > 0) {
     throw new DuplicationError('insight already exists')

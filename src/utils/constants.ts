@@ -21,9 +21,14 @@ export const JWT_ACCESS_SECRET = process.env?.JWT_ACCESS_SECRET ?? '';
 export const JWT_ACCESS_EXPIRES_IN = process.env?.JWT_ACCESS_EXPIRES_IN ?? '14d';
 export const JWT_REFRESH_SECRET = process.env?.JWT_REFRESH_SECRET ?? '';
 export const JWT_REFRESH_EXPIRES_IN = process.env?.JWT_REFRESH_EXPIRES_IN ?? '14d';
-export const BASIC_COVERS_LIMIT = 3;
+export const BASIC_COVERS_LIMIT = 10;
 export const BASIC_INSIGHTS_LIMIT = 10;
 export const BASIC_USERS_LIMIT = 5;
+
+export const CLOUDINARY_NAME = process.env?.CLOUDINARY_NAME ?? "";
+export const CLOUDINARY_API_KEY = process.env?.CLOUDINARY_API_KEY ?? "";
+export const CLOUDINARY_API_SECRET = process.env?.CLOUDINARY_API_SECRET ?? "";
+
 
 export enum ROLE {
   ADMIN = 'admin',

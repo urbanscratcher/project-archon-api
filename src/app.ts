@@ -15,7 +15,11 @@ import meRouter from './routers/meRoutes';
 import topicRouter from './routers/topicRoutes';
 import userRouter from './routers/userRoutes';
 import { ORIGIN, PORT } from './utils/constants';
+import imgRouter from './routers/imgRoutes';
+// @ts-ignore
+import fileUpload from 'express-fileupload';
 const { xss } = require('express-xss-sanitizer')
+
 
 // ENV SETTING ------------------------------------------
 const httpLogger = require('pino-http')();
@@ -62,6 +66,9 @@ app.use(hpp());
 // Cookie parser
 app.use(cookieParser())
 
+// File Uploader
+app.use(fileUpload())
+
 // MIDDLEWARES -------------------------------------------
 // Logging all http requests
 app.all('*', (req, res, next) => {
@@ -76,6 +83,7 @@ app.use('/archon-api/v1/insights', insightRouter)
 app.use('/archon-api/v1/covers', coverRouter)
 app.use('/archon-api/v1/auth', authRouter)
 app.use('/archon-api/v1/me', meRouter)
+app.use('/archon-api/v1/avatars', imgRouter)
 
 // Other Routes Handling
 app.all('*', (req, res, next) => {

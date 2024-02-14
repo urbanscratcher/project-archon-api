@@ -34,6 +34,7 @@ export class DuplicationError extends AppError {
 }
 
 
+
 export class BadRequestError extends AppError {
   type: string;
 
@@ -79,3 +80,4 @@ export class InternalError extends AppError {
     this.type = 'InternalError';
   }
 }
+

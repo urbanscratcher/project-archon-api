@@ -1,10 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../dtos/Dto';
-import { BadRequestError, NotFoundError } from "../dtos/Errors";
+import { NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
 import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
-import { checkRequireds, validateParamIdx, getValidUserIdx, toSortSql, respond, toMysqlDate, toFilterSql, toSortsSql } from '../utils/helper';
+import { checkRequireds, validateParamIdx, getValidUserIdx, respond, toMysqlDate, toFilterSql, toSortsSql } from '../utils/helper';
 import { QueryReqSchema } from '../dtos/Query';
 const logger = pino({ level: 'debug' });
 
@@ -74,12 +74,18 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   // query transform
   const query = QueryReqSchema(BASIC_INSIGHTS_LIMIT).parse(req.query);
-  const mapFields: Record<string, string> = {
+  const mapFieldNames: Record<string, string> = {
+    insight_idx: "i.idx",
     created_by: 'i.created_by',
-    topic_idx: 'i.topic_idx'
+    topic_idx: 'i.topic_idx',
+    first_name: 'u.first_name',
+    last_name: 'u.last_name',
   }
-  const filterSql = query?.filter && toFilterSql(query.filter, ["idx", "title", "created_by", "topic_idx"])?.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]);
-  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => s.replace(/created_by|topic_idx/g, (matched) => mapFields[matched]));
+  const replaceFieldNames = (str: string) => str.replace(/insight_idx|created_by|topic_idx|first_name|last_name/g, (matched) => mapFieldNames[matched]);
+
+  const filterSql = query?.filter && replaceFieldNames(toFilterSql(query.filter, ["insight_idx", "title", "created_by", "first_name", "last_name", "topic_idx"]));
+  const sortsSql = query?.sorts && toSortsSql(query.sorts, ["idx", "created_at"])?.map(s => replaceFieldNames(s));
+
 
   // DB
   const foundInsights = await conn.query(`

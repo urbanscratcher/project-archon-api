@@ -4,6 +4,8 @@ import mariadb from 'mariadb';
 import { DB_DATABASE, DB_HOST, DB_PORT, DB_PWD, DB_USER } from './constants';
 dotenv.config({ path: '.env' })
 
+
+
 // config ----------------------------
 const pool = mariadb.createPool({
   host: DB_HOST,
@@ -19,6 +21,7 @@ export const asyncHandled = (fn: Function) => {
     try {
       await fn(req, res, next);
     } catch (e) {
+      console.log("error!!", e);
       next(e)
     }
   })

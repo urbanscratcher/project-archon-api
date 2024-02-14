@@ -25,6 +25,7 @@ export default function globalErrorHandler(err: any, req: Request, res: Response
   if (err.name === 'SqlError') err = new InternalError('DB error')
 
 
+
   // default error format
   err.statusCode = err.statusCode || 500;
   res.status(err.statusCode).json({
