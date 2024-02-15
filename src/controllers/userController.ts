@@ -293,7 +293,7 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
       [
         newUser.firstName ?? oldUser.first_name,
         newUser.lastName ?? oldUser.last_name,
-        newUser.avatar ? (newUser.avatar === "" ? null : newUser.avatar) : oldUser.avatar,
+        newUser.avatar ? (newUser.avatar === "" ? 'empty' : newUser.avatar) : oldUser.avatar,
         newUser.jobTitle ? (newUser.jobTitle === "" ? null : newUser.jobTitle) : oldUser.jobTitle,
         newUser.biography ? (newUser.biography === "" ? null : newUser.biography) : oldUser.biography,
         hashedPassword ?? oldUser.password,
