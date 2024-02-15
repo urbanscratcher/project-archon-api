@@ -273,6 +273,8 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
   const hashedPassword = decryptedNewPassword !== '' ? await bcrypt.hash(decryptedNewPassword, 12) : null;
 
 
+
+
   const updateUser = async () => {
     const now = toMysqlDate();
     await conn.query(`
@@ -291,9 +293,9 @@ export const updateUser = asyncHandledDB(async (conn: any, req: Request, res: Re
       [
         newUser.firstName ?? oldUser.first_name,
         newUser.lastName ?? oldUser.last_name,
-        newUser.avatar ?? oldUser.avatar,
-        newUser.jobTitle ?? oldUser.job_title,
-        newUser.biography ?? oldUser.biography,
+        newUser.avatar ? (newUser.avatar === "" ? null : newUser.avatar) : oldUser.avatar,
+        newUser.jobTitle ? (newUser.jobTitle === "" ? null : newUser.jobTitle) : oldUser.jobTitle,
+        newUser.biography ? (newUser.biography === "" ? null : newUser.biography) : oldUser.biography,
         hashedPassword ?? oldUser.password,
         newUser.careers ?
           newUser.careers.length > 0 ? JSON.stringify(newUser.careers) : null
