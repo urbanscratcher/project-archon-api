@@ -1,30 +1,33 @@
-import { NextFunction, Request, Response } from "express";
-import { asyncHandled, asyncHandledDB } from "../utils/connectDB";
 import { ResponseCallback, v2 as cloudinary } from 'cloudinary';
-// @ts-ignore
-import { CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_NAME } from "../utils/constants";
-import { getValidUserIdx, respond, validateParamIdx } from "../utils/helper";
+import { NextFunction, Request, Response } from "express";
 import { BadRequestError, InternalError, NotFoundError } from "../dtos/Errors";
+import { asyncHandled, asyncHandledDB } from "../utils/connectDB";
+import { CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_NAME } from "../utils/constants";
+import { getValidUserIdx, respond } from "../utils/helper";
+// @ts-ignore
 import { Readable } from "stream";
+
 
 interface FileRequest extends Request {
   files?: any;
 }
 
-export const createAvatar = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
-  // validate user
+export const uploadInisghtImg = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
   const idx = getValidUserIdx(req);
-
-  // exist check
-  const foundUsers = await conn.query(`SELECT * FROM USER WHERE idx = ? AND del_at is NULL`, idx);
-  if (foundUsers.length <= 0) {
-    throw new NotFoundError(`user not found`)
-  }
-
-  createImg(req, res, "avatars", `_${idx}_${Date.now()}`);
+  uploadImg(req, res, `insights/temp/${idx}`, `_${Date.now()}`);
 })
 
-export const deleteAvatar = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
+export const uploadThumbnail = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
+  const idx = getValidUserIdx(req);
+  uploadImg(req, res, `thumbnails/temp/${idx}`, `_${Date.now()}`);
+})
+
+export const uploadAvatar = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
+  const idx = getValidUserIdx(req);
+  uploadImg(req, res, "avatars", `_${idx}_${Date.now()}`);
+})
+
+export const removeAvatar = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
   // validate user
   const idx = getValidUserIdx(req);
 
@@ -36,15 +39,17 @@ export const deleteAvatar = asyncHandledDB(async (conn: any, req: Request, res: 
 
   const avatarUrl = foundUsers[0]?.avatar;
   if (!avatarUrl) return res.status(204)
+
   deleteImg(avatarUrl, "avatars", (err, result) => {
     if (err) throw new InternalError('failed to delete')
     return result && result?.result !== 'not found' ? respond(res, 200) : respond(res, 204)
   });
 })
 
-const createImg = (req: Request, res: Response, folderName: string, addedFileName: string) => {
+
+const uploadImg = (req: Request, res: Response, folderName: string, addedFileName: string) => {
   const fileRequest = req as FileRequest
-  const file = fileRequest.files?.avatar;
+  const file = fileRequest.files?.img;
 
   // error when no files exist
   if (!fileRequest?.files || Object.keys(fileRequest?.files).length === 0 || !file) {
