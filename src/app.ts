@@ -1,7 +1,7 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import express from "express";
+import express, { Request, Response } from "express";
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
@@ -59,7 +59,17 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Sanitize data against XSS
-app.use(xss());
+// filter helper fn
+const unless = function (path: string, middleware: any) {
+  return function (req: Request, res: Response, next: any) {
+    if (path === req.path) {
+      return next();
+    } else {
+      return middleware(req, res, next);
+    }
+  };
+};
+app.use(unless('/archon-api/v1/insights', xss()));
 
 // Prevent parameter pollution
 app.use(hpp());
