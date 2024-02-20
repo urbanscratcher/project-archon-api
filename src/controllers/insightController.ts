@@ -66,9 +66,10 @@ export const createInsight = asyncHandledDB(async (conn: any, req: Request, res:
   , created_by = ?
   , created_at = ?`,
     [title, thumbnail, content, summary, topicIdx, createdBy, toMysqlDate()]);
+
   logger.debug({ res: result }, 'DB response');
 
-  respond(res, 201);
+  respond(res, 201, { idx: Number(result?.insertId) });
 })
 
 export const getInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
