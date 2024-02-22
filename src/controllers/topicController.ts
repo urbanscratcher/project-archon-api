@@ -95,7 +95,7 @@ export const getAllTopics = asyncHandledDB(async (conn: any, req: Request, res: 
     IFNULL(ti.total_insights,0) as total_insights
   FROM TOPIC t
   LEFT JOIN (SELECT 
-      i.idx as topic_idx,
+      i.topic_idx as topic_idx,
       count(*) as total_insights
     FROM INSIGHT i
     GROUP BY i.topic_idx) ti ON ti.topic_idx = t.idx
