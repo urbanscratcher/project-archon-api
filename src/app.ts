@@ -14,8 +14,7 @@ import insightRouter from './routers/insightRoutes';
 import meRouter from './routers/meRoutes';
 import topicRouter from './routers/topicRoutes';
 import userRouter from './routers/userRoutes';
-import { ORIGIN, PORT } from './utils/constants';
-import avatarRouter from './routers/avatarRoutes';
+import { ORIGINS, PORT } from './utils/constants';
 // @ts-ignore
 import fileUpload from 'express-fileupload';
 import imgsRouter from './routers/imgsRoutes';
@@ -39,7 +38,21 @@ const app = express();
 
 // GLOBAL MIDDLEWARES ------------------------------------
 // Set CORS
-app.use(cors({ origin: ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+
+    if (!ORIGINS || ORIGINS.length <= 0) return cb(null, true);
+
+    if (ORIGINS.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not ' + 'allow access from the specified origin';
+      return cb(new Error(msg), false);
+    }
+
+    return cb(null, true);
+  }, credentials: true
+}));
+
 
 // Set security HTTP headers
 app.use(helmet());

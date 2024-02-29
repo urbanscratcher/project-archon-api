@@ -162,3 +162,42 @@ export const getAllCovers = asyncHandledDB(async (conn: any, req: Request, res: 
   respond(res, 200, coverList)
 })
 
+export const getHeadline = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+  const headline = await conn.query(`
+    SELECT
+      c.idx as idx,
+      c.insight_idx as insight_idx,
+      c.created_at as created_at,
+      c.created_by as created_by,
+      i.title as title,
+      i.thumbnail as thumbnail,
+      i.topic_idx as topic_idx,
+      t.name as topic_name,
+      c.is_main as is_main
+    FROM COVER c
+    LEFT JOIN INSIGHT i ON c.insight_idx = i.idx
+    LEFT JOIN TOPIC t ON i.topic_idx = t.idx
+    WHERE is_main is true
+    LIMIT 1 OFFSET 0
+  `);
+
+  const data = headline.length > 0 ? headline.map((c: any) => {
+    return {
+      idx: c.idx,
+      is_main: c.is_main === 1 ? true : false,
+      insight: {
+        idx: c.insight_idx,
+        title: c.title,
+        thumbnail: c.thumbnail,
+      },
+      topic: {
+        idx: c.topic_idx,
+        name: c.topic_name
+      },
+      created_at: c.created_at.toISOString(),
+      created_by: c.created_by
+    }
+  })[0] : undefined;
+
+  respond(res, 200, data)
+})

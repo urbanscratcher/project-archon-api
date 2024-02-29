@@ -14,7 +14,6 @@ export function createRefreshToken(payload: object) {
   const token = jwt.sign(payload, JWT_REFRESH_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN
   });
-  console.log(token);
   return {
     refresh_token: token
   }

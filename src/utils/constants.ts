@@ -4,7 +4,7 @@ dotenv.config({ path: '.env' })
 export const NODE_ENV = process.env?.NODE_ENV ?? 'development';
 export const PORT = process.env?.PORT ?? 5001;
 
-export const ORIGIN = (NODE_ENV === 'production' ? process.env?.PROD_ORIGIN : process.env?.LOCAL_ORIGIN) ?? '';
+export const ORIGINS = (NODE_ENV === 'production' ? process.env?.PROD_ORIGIN && process.env.PROD_ORIGIN.split(", ") : process.env?.LOCAL_ORIGIN && process.env.LOCAL_ORIGIN.split(", ") || []);
 
 export const DB_HOST = process.env?.DB_HOST ?? 'localhost';
 export const DB_USER = process.env?.DB_USER ?? 'root';
