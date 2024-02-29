@@ -1,13 +1,14 @@
+import { v2 as cloudinary } from 'cloudinary';
 import { NextFunction, Request, Response } from 'express';
 import pino from 'pino';
 import { Dto, ListDto } from '../dtos/Dto';
 import { NotFoundError } from "../dtos/Errors";
+import { QueryReqSchema } from '../dtos/Query';
 import { asyncHandledDB } from '../utils/connectDB';
 import { BASIC_INSIGHTS_LIMIT } from '../utils/constants';
-import { checkRequireds, validateParamIdx, getValidUserIdx, respond, toMysqlDate, toFilterSql, toSortsSql } from '../utils/helper';
-import { QueryReqSchema } from '../dtos/Query';
+import { checkRequireds, getValidUserIdx, respond, toFilterSql, toMysqlDate, toSortsSql, validateParamIdx } from '../utils/helper';
+import { CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_NAME } from './../utils/constants';
 const logger = pino({ level: 'debug' });
-
 
 class InsightDto extends Dto {
   idx: number;
@@ -199,9 +200,32 @@ export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res:
 
   // insight exist check
   const foundInsights = await conn.query(`SELECT * FROM INSIGHT WHERE idx = ? AND del_at is null`, idx);
-  if (foundInsights.length <= 0) {
+  if (foundInsights?.length <= 0) {
     throw new NotFoundError('insight not found')
   }
+
+  // remove existing thumbnail
+  const existingThumbnail = foundInsights[0].thumbnail;
+
+  // check if any thumbnail exists
+  const result = await fetch(existingThumbnail, {
+    method: 'HEAD',
+  })
+
+  if (result.status === 200) {
+    const thumbFound = existingThumbnail.match(`(thumbnails\/).*(?=\.(png|jpg|jpeg|webp))`);
+    if (thumbFound?.length > 0) {
+      const pubId = thumbFound?.length > 0 ? thumbFound[0] : '';
+
+      try {
+        const result = await cloudinary.uploader.destroy(pubId)
+        logger.info(`removed the existing thumbnail - ${result}`);
+      } catch (err) {
+        logger.error(err)
+      }
+    }
+  }
+
 
   // parse
   const title = req.body?.title ?? null;
@@ -210,26 +234,86 @@ export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res:
   const summary = req.body?.summary ?? null;
   const topicIdx = req.body?.topic_idx ?? null;
 
-  await conn.query(`
-  UPDATE INSIGHT SET
-    title = ?,
-    thumbnail = ?,
-    content = ?,
-    summary = ?,
-    topic_idx = ?,
-    edited_by = ?,
-    edited_at = ?   
-  WHERE idx = ?
-  `, [
-    title,
-    thumbnail,
-    content,
-    summary,
-    topicIdx,
-    editedBy,
-    toMysqlDate(),
-    idx
-  ])
+  // process thumbnail image
+  if (thumbnail) {
+    const thumbnailPath = thumbnail.match(`(image\/).*`)
+    const thumbnailFromFound = thumbnail.match(`((?=thumbnails\/).+)(?=\.(png|jpg|jpeg|webp))`);
+    const thumbnailFrom = thumbnailFromFound?.length > 0 && thumbnailFromFound[0];
+    const thumbnailTo = thumbnailFrom && thumbnailFrom.split('/')[3];
+    console.log(thumbnailFromFound);
 
-  respond(res, 200)
+    // cloudinary config
+    cloudinary.config({
+      cloud_name: CLOUDINARY_NAME,
+      api_key: CLOUDINARY_API_KEY,
+      api_secret: CLOUDINARY_API_SECRET,
+    });
+
+    // check if any thumbnail exists
+    const result = await fetch('https://res.cloudinary.com' + `/${CLOUDINARY_NAME}/${thumbnailPath[0]}`, {
+      method: 'HEAD',
+    })
+
+    if (result.status === 200) {
+      // move thumbnail
+      await cloudinary.uploader.rename(thumbnailFrom, `thumbnails/${thumbnailTo}`).then(async (result) => {
+
+        // clear all imgs in temp
+        cloudinary.search.expression(
+          `folder:thumbnails/temp/${editedBy}`
+        ).max_results(30).execute().then((result) => {
+          if (result.total_count > 0) {
+            result.resources.forEach((el: any) => {
+              cloudinary.uploader.destroy(el.public_id).then(result => logger.debug(result)).catch(err => logger.error(err))
+            });
+          } else {
+            logger.info('No temp images to be removed found')
+          }
+        }).catch(err => logger.warn(err));
+
+        await conn.query(`
+      UPDATE INSIGHT SET
+        title = ?,
+        thumbnail = ?,
+        content = ?,
+        summary = ?,
+        topic_idx = ?,
+        edited_by = ?,
+        edited_at = ?   
+      WHERE idx = ?
+    `, [
+          title,
+          result.secure_url,
+          content,
+          summary,
+          topicIdx,
+          editedBy,
+          toMysqlDate(),
+          idx
+        ])
+      }).catch(err => console.error(err));
+
+    }
+  } else {
+    await conn.query(`
+    UPDATE INSIGHT SET
+      title = ?,
+      content = ?,
+      summary = ?,
+      topic_idx = ?,
+      edited_by = ?,
+      edited_at = ?   
+    WHERE idx = ?
+  `, [
+      title,
+      content,
+      summary,
+      topicIdx,
+      editedBy,
+      toMysqlDate(),
+      idx
+    ])
+  }
+
+  respond(res, 200);
 })

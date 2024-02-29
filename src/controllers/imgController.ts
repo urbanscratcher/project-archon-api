@@ -14,17 +14,17 @@ interface FileRequest extends Request {
 
 export const uploadInisghtImg = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
   const idx = getValidUserIdx(req);
-  uploadImg(req, res, `insights/temp/${idx}`, `_${Date.now()}`);
+  await uploadImg(req, res, `insights/temp/${idx}`, `_${Date.now()}`);
 })
 
 export const uploadThumbnail = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
   const idx = getValidUserIdx(req);
-  uploadImg(req, res, `thumbnails/temp/${idx}`, `_${Date.now()}`);
+  await uploadImg(req, res, `thumbnails/temp/${idx}`, `_${Date.now()}`);
 })
 
 export const uploadAvatar = asyncHandled(async (req: Request, res: Response, next: NextFunction) => {
   const idx = getValidUserIdx(req);
-  uploadImg(req, res, "avatars", `_${idx}_${Date.now()}`);
+  await uploadImg(req, res, "avatars", `_${idx}_${Date.now()}`);
 })
 
 export const removeAvatar = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
@@ -47,7 +47,7 @@ export const removeAvatar = asyncHandledDB(async (conn: any, req: Request, res: 
 })
 
 
-const uploadImg = (req: Request, res: Response, folderName: string, addedFileName: string) => {
+const uploadImg = async (req: Request, res: Response, folderName: string, addedFileName: string) => {
   const fileRequest = req as FileRequest
   const file = fileRequest.files?.img;
 
@@ -65,14 +65,28 @@ const uploadImg = (req: Request, res: Response, folderName: string, addedFileNam
   const fileName = file.name.split(".")[0]
   const options = { public_id: fileName + addedFileName, folder: folderName };
 
-  const transformStream = cloudinary.uploader.upload_stream(options, (err, result) => {
-    if (err) throw new InternalError('Upload failed. Try again');
-    res.json({ url: result?.secure_url })
+  return uploadStream(options, file.data).then((result: any) => {
+    const url = result?.secure_url;
+    res.json({ url: url })
     return respond(res, 201)
+  }).catch(err => {
+    console.error(err);
+    throw new InternalError('Upload Failed')
   })
+}
 
-  let str = Readable.from(file.data);
-  str.pipe(transformStream);
+export async function uploadStream(options: any, buffer: any) {
+  return new Promise((res, rej) => {
+    const theTransformStream = cloudinary.uploader.upload_stream(
+      options,
+      (err, result) => {
+        if (err) return rej(err);
+        res(result);
+      }
+    );
+    let str = Readable.from(buffer);
+    str.pipe(theTransformStream);
+  });
 }
 
 const deleteImg = (imgUrl: string, folderName: string, callback: ResponseCallback | undefined) => {
