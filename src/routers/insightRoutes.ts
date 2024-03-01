@@ -1,10 +1,10 @@
-import express, { Router } from 'express';
+import { Router } from 'express';
 import { authenticate, authorize } from '../controllers/authController';
 import { createInsight, deleteInsight, getInsight, getInsights, updateInsight } from '../controllers/insightController';
-import { ROLE } from '../utils/constants';
 import { addInsightHits, getInsightHits } from '../controllers/insightHitsController';
+import { ROLE } from '../utils/constants';
 
-const insightRouter: Router = express.Router();
+const insightRouter: Router = Router();
 
 insightRouter
   .route('/')
@@ -30,5 +30,6 @@ insightRouter
   .route('/:idx/hits')
   .post(addInsightHits)
   .get(getInsightHits)
+
 
 export default insightRouter;
