@@ -38,7 +38,7 @@ class UserDto extends Dto {
     this.biography = obj[0].biography ?? undefined;
     this.careers = obj[0].careers ? obj[0].careers.replace(/"/g, "'") : undefined;
     this.createdAt = obj[0].created_at.toISOString();
-    this.topics = (Array.isArray(obj) && obj.length > 0) ? obj.map((o: any) => {
+    this.topics = (obj[0]?.topics && Array.isArray(obj[0].topics) && obj[0].topics.length > 0) ? obj.map((o: any) => {
       return {
         idx: o.topic_idx,
         name: o.topic_name,
