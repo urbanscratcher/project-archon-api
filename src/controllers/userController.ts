@@ -38,7 +38,7 @@ class UserDto extends Dto {
     this.biography = obj[0].biography ?? undefined;
     this.careers = obj[0].careers ? obj[0].careers.replace(/"/g, "'") : undefined;
     this.createdAt = obj[0].created_at.toISOString();
-    this.topics = (obj[0]?.topics && Array.isArray(obj[0].topics) && obj[0].topics.length > 0) ? obj.map((o: any) => {
+    this.topics = (obj[0]?.topic_idx > 0) ? obj.map((o: any) => {
       return {
         idx: o.topic_idx,
         name: o.topic_name,
@@ -196,8 +196,6 @@ export const getUserDB = async (conn: any, idx: number): Promise<UserDto> => {
   if (foundUsers.length <= 0) {
     throw new NotFoundError(`user not found`)
   }
-
-
 
   const user: UserDto = new UserDto(foundUsers);
   return user;
