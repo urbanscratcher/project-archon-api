@@ -1,7 +1,7 @@
 import { sub } from 'date-fns';
 import { Request, Response } from "express";
 import { NotFoundError } from "../dtos/Errors";
-import { TrendingInsightsSchema } from "../schemas/TrendingSchema";
+import { TrendingInsightsSchema } from "../schemas/trendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 
