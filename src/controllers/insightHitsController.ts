@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
+import pino from "pino";
 import { BadRequestError, NotFoundError } from "../dtos/Errors";
+import { InsightHitsSchema } from "../schemas/insightHitsSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond, toMysqlDate } from "../utils/helper";
-import pino from "pino";
-import { InsightHitsSchema } from "../schemas/insightHitsSchema";
 const logger = pino({ level: 'debug' });
 
 

@@ -90,7 +90,7 @@ export const sendIssuedTokens = (res: Response, user: any) => {
   respond(res, 201, createAccessToken({ idx: user.idx }))
 }
 
-export const refreshTokens = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
+export const refreshTokens = asyncHandledDB(async (conn: any, req: Request, res: Response, _next: NextFunction) => {
   const refreshToken = req.cookies.refresh_token;
   if (!refreshToken || refreshToken === '') {
     throw new BadRequestError('no token')
@@ -112,7 +112,7 @@ export const refreshTokens = asyncHandledDB(async (conn: any, req: Request, res:
   sendIssuedTokens(res, users[0])
 })
 
-export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
+export const authenticate = asyncHandledDB(async (conn: any, req: Request, _res: Response, next: NextFunction) => {
   // parse
   const authorization = req.headers?.authorization;
 
@@ -164,7 +164,7 @@ export const authenticate = asyncHandledDB(async (conn: any, req: Request, res: 
 })
 
 export const authorize = (...roles: any[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     const userRole = req.userRole;
     if (!roles.includes(userRole)) {
       throw new UnauthorizedError('user has no permission')
