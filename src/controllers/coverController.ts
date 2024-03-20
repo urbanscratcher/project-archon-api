@@ -38,7 +38,6 @@ export const createCover = asyncHandledDB(async (conn: any, req: Request, res: R
 
   const totalResult = await conn.query(`SELECT count(*) as total FROM COVER`);
   const total = Number(totalResult[0].total);
-  console.log(total);
   const isMain = total <= 0 ? true : false;
 
   const result = await conn.query(`INSERT INTO COVER

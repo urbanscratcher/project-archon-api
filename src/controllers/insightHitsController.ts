@@ -25,8 +25,6 @@ export const addInsightHits = asyncHandledDB(async (conn: any, req: Request, res
     throw new NotFoundError('no insight found');
   }
 
-  console.log(insightFound);
-
   const ip = req.headers['x-forwarded-for'] || req.ip?.split(':')[2] === "1" ? "127.0.0.1" : req.ip?.split(':')[2];
 
   if (!ip) {

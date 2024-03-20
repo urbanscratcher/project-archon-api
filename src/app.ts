@@ -19,6 +19,7 @@ import { ORIGINS, PORT } from './utils/constants';
 import fileUpload from 'express-fileupload';
 import imgsRouter from './routers/imgsRoutes';
 import trendingRouter from './routers/trendingRouter';
+import randomRouter from './routers/randomRoutes';
 const { xss } = require('express-xss-sanitizer')
 
 
@@ -110,9 +111,10 @@ app.use('/archon-api/v1/auth', authRouter)
 app.use('/archon-api/v1/me', meRouter)
 app.use('/archon-api/v1/imgs', imgsRouter)
 app.use('/archon-api/v1/trending', trendingRouter)
+app.use('/archon-api/v1/random', randomRouter)
 
 // Other Routes Handling
-app.all('*', (req, res, next) => {
+app.all('*', (_req, _res, next) => {
   next(new NotFoundError(`Can not find on this server`))
 });
 

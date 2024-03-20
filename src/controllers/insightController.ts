@@ -240,7 +240,6 @@ export const updateInsight = asyncHandledDB(async (conn: any, req: Request, res:
     const thumbnailFromFound = thumbnail.match(`((?=thumbnails\/).+)(?=\.(png|jpg|jpeg|webp))`);
     const thumbnailFrom = thumbnailFromFound?.length > 0 && thumbnailFromFound[0];
     const thumbnailTo = thumbnailFrom && thumbnailFrom.split('/')[3];
-    console.log(thumbnailFromFound);
 
     // cloudinary config
     cloudinary.config({

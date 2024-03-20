@@ -98,7 +98,6 @@ export const refreshTokens = asyncHandledDB(async (conn: any, req: Request, res:
 
   // verify refresh token
   const verifiedToken = await verifyRefreshToken(refreshToken);
-  console.log(verifiedToken);
   const idx = verifiedToken?.idx;
   if (!Number.isInteger(+idx)) {
     throw new UnauthenticatedError('no idx');

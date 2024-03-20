@@ -7,7 +7,7 @@ import { QueryReqSchema } from '../dtos/Query';
 import { UserReqSchema, UserUpdateSchema } from '../schemas/userSchema';
 import { ROLE } from '../utils/constants';
 import { decryptAES256 } from '../utils/crypto';
-import { validateParamIdx, respond, toFilterSql, toMysqlDate, toSortsSql } from '../utils/helper';
+import { respond, toFilterSql, toMysqlDate, toSortsSql, validateParamIdx } from '../utils/helper';
 import { asyncHandledDB } from './../utils/connectDB';
 import { BASIC_USERS_LIMIT } from './../utils/constants';
 import { sendIssuedTokens } from './authController';
@@ -206,7 +206,7 @@ export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Respo
   respond(res, 200, getUserDB(conn, idx));
 })
 
-export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, next: NextFunction) => {
+export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, _next: NextFunction) => {
   // parse
   const idx = validateParamIdx(req);
 

@@ -3,7 +3,7 @@ import pino from 'pino';
 import { ListDto } from '../dtos/Dto';
 import { BadRequestError, DuplicationError, NotFoundError } from "../dtos/Errors";
 import { asyncHandledDB } from '../utils/connectDB';
-import { checkRequireds, validateParamIdx, isSpecialOrBlank, respond, toArray } from '../utils/helper';
+import { isSpecialOrBlank, respond, toArray, validateParamIdx } from '../utils/helper';
 const logger = pino({ level: 'debug' });
 
 export const createTopic = asyncHandledDB(async (conn: any, req: Request, res: Response) => {

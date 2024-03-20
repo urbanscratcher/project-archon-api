@@ -1,11 +1,11 @@
+import { sub } from 'date-fns';
+import { Request, Response } from "express";
 import { NotFoundError } from "../dtos/Errors";
 import { TrendingInsightsSchema } from "../schemas/TrendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
-import { sub } from 'date-fns';
 import { respond } from "../utils/helper";
-import { Request, Response } from "express";
 
-export const getTrendingInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+export const getTrendingInsights = asyncHandledDB(async (conn: any, _req: Request, res: Response) => {
   const foundInsights = await conn.query(`SELECT
     i.idx,
     h.hits,
@@ -41,7 +41,7 @@ export const getTrendingInsights = asyncHandledDB(async (conn: any, req: Request
   respond(res, 200, trendingInsights)
 })
 
-export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+export const getTrendingAuthors = asyncHandledDB(async (_conn: any, _req: Request, res: Response) => {
 
 
 

@@ -32,4 +32,5 @@ export const UserUpdateSchema = z.object({
   first_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage).optional(),
   last_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage).optional(),
 }).merge(UserExtraSchema).transform((data) => toCamelCase(data));
+
 export type UserUpdateType = z.infer<typeof UserUpdateSchema>;
