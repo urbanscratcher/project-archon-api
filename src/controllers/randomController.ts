@@ -6,7 +6,7 @@ import { respond } from "../utils/helper";
 
 export const getRandomInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
-  const limit = req.query?.limit || 6;
+  const limit = req.query?.limit ? +req.query?.limit : 6;
 
   const randomInsights = await conn.query(`SELECT idx, thumbnail, title, summary
   FROM INSIGHT
