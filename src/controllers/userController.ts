@@ -193,6 +193,7 @@ export const getUserDB = async (conn: any, idx: number): Promise<UserDto> => {
   LEFT JOIN TOPIC c ON uc.topic_idx = c.idx 
   WHERE u.idx = ?
   AND u.del_at is NULL`, idx);
+
   if (foundUsers.length <= 0) {
     throw new NotFoundError(`user not found`)
   }
@@ -203,7 +204,9 @@ export const getUserDB = async (conn: any, idx: number): Promise<UserDto> => {
 
 export const getUser = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
   const idx = validateParamIdx(req);
-  respond(res, 200, getUserDB(conn, idx));
+  const user = await getUserDB(conn, idx);
+
+  respond(res, 200, user);
 })
 
 export const deleteUser = asyncHandledDB(async (conn: any, req: Request, res: Response, _next: NextFunction) => {

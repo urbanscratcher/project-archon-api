@@ -20,7 +20,6 @@ export const UserReqSchema = z.object({
   role: z.enum(ROLES).optional(),
 }).merge(UserExtraSchema)
   .transform((data) => toCamelCase(data));
-export type UserType = z.infer<typeof UserReqSchema>;
 
 export const UserUpdateSchema = z.object({
   role: z.string().optional(),
@@ -33,4 +32,6 @@ export const UserUpdateSchema = z.object({
   last_name: z.string().refine(isNotSpecialOrBlank, isNoSpecialOrBlankMessage).optional(),
 }).merge(UserExtraSchema).transform((data) => toCamelCase(data));
 
+
+export type UserReqType = z.infer<typeof UserReqSchema>;
 export type UserUpdateType = z.infer<typeof UserUpdateSchema>;
