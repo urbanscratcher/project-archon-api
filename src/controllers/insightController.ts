@@ -36,8 +36,8 @@ class InsightDto extends Dto {
       idx: obj[0].created_by,
       firstName: obj[0].created_first_name,
       lastName: obj[0].created_last_name,
-      avatar: obj[0].created_avatar,
-      biography: obj[0].created_biography,
+      avatar: obj[0]?.created_avatar || undefined,
+      biography: obj[0]?.created_biography || undefined,
       topics: obj.length > 1 ? obj.map((o: any) => {
         return {
           idx: o.topic_idx,
@@ -46,7 +46,7 @@ class InsightDto extends Dto {
       }) : undefined
     }
     this.createdAt = obj[0].created_at.toISOString();
-    this.editedAt = obj[0]?.edited_at?.toISOString() ?? undefined;
+    this.editedAt = obj[0]?.edited_at?.toISOString() || undefined;
   }
 }
 

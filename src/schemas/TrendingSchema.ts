@@ -1,5 +1,6 @@
+
+import { formatISO } from 'date-fns';
 import { z } from "zod";
-import { formatISO } from 'date-fns'
 
 export const TrendingInsightSchema = z.object({
   idx: z.number(),
@@ -40,5 +41,23 @@ export const TrendingInsightSchema = z.object({
 
 export const TrendingInsightsSchema = z.array(TrendingInsightSchema);
 
+export const TrendingAuthorSchema = z.object({
+  cnt: z.coerce.number(),
+  idx: z.number(),
+  first_name: z.string(),
+  last_name: z.string(),
+  avatar: z.string().nullable().transform((a) => a || undefined),
+  topics: z.array(z.object({
+    idx: z.number(),
+    name: z.string(),
+  })).optional()
+})
+
+export const TrendingAuthorsSchema = z.array(TrendingAuthorSchema);
+
 export type TrendingInsight = z.infer<typeof TrendingInsightSchema>
 export type TrendingInsights = z.infer<typeof TrendingInsightsSchema>
+
+export type TrendingAuthor = z.infer<typeof TrendingAuthorSchema>
+export type TrendingAuthors = z.infer<typeof TrendingAuthorsSchema>
+

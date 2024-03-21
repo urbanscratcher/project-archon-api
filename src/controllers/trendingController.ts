@@ -1,7 +1,7 @@
 import { sub } from 'date-fns';
 import { Request, Response } from "express";
-import { NotFoundError } from "../dtos/Errors";
-import { TrendingInsightsSchema } from "../schemas/trendingSchema";
+import { InternalError, NotFoundError } from "../dtos/Errors";
+import { TrendingAuthorSchema, TrendingInsightsSchema, type TrendingAuthor } from "../schemas/trendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 
@@ -41,9 +41,54 @@ export const getTrendingInsights = asyncHandledDB(async (conn: any, _req: Reques
   respond(res, 200, trendingInsights)
 })
 
-export const getTrendingAuthors = asyncHandledDB(async (_conn: any, _req: Request, res: Response) => {
+export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
+  const limit = req?.params?.limit ?? 5;
 
+  const foundAuthors = await conn.query(`
+    SELECT
+      COUNT(*) AS cnt,
+      i.created_by AS idx,
+      u.first_name,
+      u.last_name,
+      u.avatar
+    FROM INSIGHT i
+    LEFT JOIN USER u ON u.idx = i.created_by
+    WHERE i.created_at >= ?
+    AND i.del_at IS NULL
+    AND u.del_at IS NULL
+    GROUP BY i.created_by
+    ORDER BY cnt DESC
+    LIMIT ? OFFSET 0
+  `, [
+    sub(new Date(), { months: 3 }),
+    limit
+  ])
 
-  res.json()
+  if (!foundAuthors) {
+    throw new InternalError('Failed to fetch authors');
+  }
+
+  const parsed = await Promise.all(foundAuthors.map(async (a: any) => {
+    const author = TrendingAuthorSchema.safeParse(a);
+    if (!author.success) {
+      throw new InternalError('Failed to parse authors');
+    }
+
+    const topics = await conn.query(`
+      SELECT t.idx, t.name
+        FROM USER_TOPIC ut
+        LEFT JOIN TOPIC t ON t.idx = ut.topic_idx
+        WHERE ut.user_idx = ?
+      ORDER BY t.seq`,
+      [a.idx]);
+
+    if (topics?.length > 0) {
+      author.data.topics = topics;
+    }
+
+    return author.data as TrendingAuthor;
+  }));
+
+  respond(res, 200, parsed)
 })
