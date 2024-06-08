@@ -88,17 +88,14 @@ export const getAllTopics = asyncHandledDB(async (conn: any, req: Request, res: 
   // DB
   const topics = await conn.query(`
   SELECT
-    t.idx as idx,
-    t.name as name,
-    t.seq as seq,
-    t.created_by as created_by,
-    IFNULL(ti.total_insights,0) as total_insights
+    t.idx AS idx,
+    t.name AS name,
+    t.seq AS seq,
+    t.created_by AS created_by,
+    IFNULL(COUNT(i.idx), 0) AS total_insights
   FROM TOPIC t
-  LEFT JOIN (SELECT 
-      i.topic_idx as topic_idx,
-      count(*) as total_insights
-    FROM INSIGHT i
-    GROUP BY i.topic_idx) ti ON ti.topic_idx = t.idx
+  LEFT JOIN INSIGHT i ON i.topic_idx = t.idx AND i.del_at IS NULL
+  GROUP BY t.idx, t.name, t.seq, t.created_by
   ORDER BY t.seq ASC
 `);
 

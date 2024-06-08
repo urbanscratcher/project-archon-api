@@ -24,6 +24,7 @@ export const JWT_REFRESH_EXPIRES_IN = process.env?.JWT_REFRESH_EXPIRES_IN ?? '14
 export const BASIC_COVERS_LIMIT = 10;
 export const BASIC_INSIGHTS_LIMIT = 10;
 export const BASIC_USERS_LIMIT = 5;
+export const BASIC_TRENDING_LIMIT = 4;
 
 export const CLOUDINARY_NAME = process.env?.CLOUDINARY_NAME ?? "";
 export const CLOUDINARY_API_KEY = process.env?.CLOUDINARY_API_KEY ?? "";

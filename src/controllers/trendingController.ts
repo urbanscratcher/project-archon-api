@@ -1,11 +1,16 @@
+import { BASIC_TRENDING_LIMIT, BASIC_USERS_LIMIT } from './../utils/constants';
 import { sub } from 'date-fns';
 import { Request, Response } from "express";
 import { InternalError, NotFoundError } from "../dtos/Errors";
+import { QueryReqSchema } from '../dtos/Query';
 import { TrendingAuthorSchema, TrendingInsightsSchema, type TrendingAuthor } from "../schemas/trendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 
-export const getTrendingInsights = asyncHandledDB(async (conn: any, _req: Request, res: Response) => {
+export const getTrendingInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+
+  const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query)
+
   const foundInsights = await conn.query(`SELECT
     i.idx,
     h.hits,
@@ -26,11 +31,11 @@ export const getTrendingInsights = asyncHandledDB(async (conn: any, _req: Reques
     WHERE ih.created_at >= ?
     GROUP BY ih.insight_idx
     ORDER BY hits DESC, insight_idx DESC
-    LIMIT 5
+    LIMIT ?
   ) as h
   JOIN INSIGHT i ON h.insight_idx = i.idx
   LEFT JOIN TOPIC t on t.idx = i.topic_idx
-  LEFT JOIN USER u on u.idx = i.created_by`, [sub(new Date(), { months: 3 })]);
+  LEFT JOIN USER u on u.idx = i.created_by`, [sub(new Date(), { months: 3 }), query.limit]);
 
   if (foundInsights?.length <= 1) {
     throw new NotFoundError('No or too less insights found')
@@ -43,7 +48,7 @@ export const getTrendingInsights = asyncHandledDB(async (conn: any, _req: Reques
 
 export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
 
-  const limit = req?.params?.limit ?? 5;
+  const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query);
 
   const foundAuthors = await conn.query(`
     SELECT
@@ -62,7 +67,7 @@ export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request,
     LIMIT ? OFFSET 0
   `, [
     sub(new Date(), { months: 3 }),
-    limit
+    query.limit
   ])
 
   if (!foundAuthors) {
