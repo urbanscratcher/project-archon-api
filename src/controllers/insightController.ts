@@ -283,6 +283,7 @@ export const updateInsight = asyncHandledDB(
       method: "HEAD",
     });
 
+    // if thumbnail exists remove
     if (result.status === 200) {
       const thumbFound = existingThumbnail.match(
         `(thumbnails\/).*(?=\.(png|jpg|jpeg|webp))`
@@ -300,13 +301,13 @@ export const updateInsight = asyncHandledDB(
     }
 
     // parse
-    const title = req.body?.title ?? null;
-    const thumbnail = req.body?.thumbnail ?? null;
-    const content = req.body?.content ?? null;
-    const summary = req.body?.summary ?? null;
+    const title = req.body?.title || null;
+    const thumbnail = req.body?.thumbnail || null;
+    const content = req.body?.content || null;
+    const summary = req.body?.summary || null;
     const topicIdx = req.body?.topic_idx ?? null;
 
-    // process thumbnail image
+    // store thumbnail image if user requested
     if (thumbnail) {
       const thumbnailPath = thumbnail.match(`(image\/).*`);
       const thumbnailFromFound = thumbnail.match(
@@ -381,6 +382,20 @@ export const updateInsight = asyncHandledDB(
             );
           })
           .catch((err) => console.error(err));
+      } else {
+        await conn.query(
+          `
+  UPDATE INSIGHT SET
+    title = ?,
+    content = ?,
+    summary = ?,
+    topic_idx = ?,
+    edited_by = ?,
+    edited_at = ?   
+  WHERE idx = ?
+`,
+          [title, content, summary, topicIdx, editedBy, toMysqlDate(), idx]
+        );
       }
     } else {
       await conn.query(
