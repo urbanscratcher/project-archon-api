@@ -1,17 +1,22 @@
-import { BASIC_TRENDING_LIMIT, BASIC_USERS_LIMIT } from './../utils/constants';
-import { sub } from 'date-fns';
+import { sub } from "date-fns";
 import { Request, Response } from "express";
 import { InternalError, NotFoundError } from "../dtos/Errors";
-import { QueryReqSchema } from '../dtos/Query';
-import { TrendingAuthorSchema, TrendingInsightsSchema, type TrendingAuthor } from "../schemas/trendingSchema";
+import { QueryReqSchema } from "../dtos/Query";
+import {
+  TrendingAuthorSchema,
+  TrendingInsightsSchema,
+  type TrendingAuthor,
+} from "../schemas/trendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
+import { BASIC_TRENDING_LIMIT } from "./../utils/constants";
 
-export const getTrendingInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+export const getTrendingInsights = asyncHandledDB(
+  async (conn: any, req: Request, res: Response) => {
+    const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query);
 
-  const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query)
-
-  const foundInsights = await conn.query(`SELECT
+    const foundInsights = await conn.query(
+      `SELECT
     i.idx,
     h.hits,
     i.title,
@@ -35,22 +40,26 @@ export const getTrendingInsights = asyncHandledDB(async (conn: any, req: Request
   ) as h
   JOIN INSIGHT i ON h.insight_idx = i.idx
   LEFT JOIN TOPIC t on t.idx = i.topic_idx
-  LEFT JOIN USER u on u.idx = i.created_by`, [sub(new Date(), { months: 3 }), query.limit]);
+  LEFT JOIN USER u on u.idx = i.created_by`,
+      [sub(new Date(), { months: 3 }), query.limit]
+    );
 
-  if (foundInsights?.length <= 1) {
-    throw new NotFoundError('No or too less insights found')
+    if (foundInsights?.length <= 1) {
+      throw new NotFoundError("No or too less insights found");
+    }
+
+    const trendingInsights = TrendingInsightsSchema.parse(foundInsights);
+
+    respond(res, 200, trendingInsights);
   }
+);
 
-  const trendingInsights = TrendingInsightsSchema.parse(foundInsights);
+export const getTrendingAuthors = asyncHandledDB(
+  async (conn: any, req: Request, res: Response) => {
+    const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query);
 
-  respond(res, 200, trendingInsights)
-})
-
-export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
-
-  const query = QueryReqSchema(BASIC_TRENDING_LIMIT).parse(req.query);
-
-  const foundAuthors = await conn.query(`
+    const foundAuthors = await conn.query(
+      `
     SELECT
       COUNT(*) AS cnt,
       i.created_by AS idx,
@@ -65,35 +74,39 @@ export const getTrendingAuthors = asyncHandledDB(async (conn: any, req: Request,
     GROUP BY i.created_by
     ORDER BY cnt DESC
     LIMIT ? OFFSET 0
-  `, [
-    sub(new Date(), { months: 3 }),
-    query.limit
-  ])
+  `,
+      [sub(new Date(), { months: 3 }), query.limit]
+    );
 
-  if (!foundAuthors) {
-    throw new InternalError('Failed to fetch authors');
-  }
-
-  const parsed = await Promise.all(foundAuthors.map(async (a: any) => {
-    const author = TrendingAuthorSchema.safeParse(a);
-    if (!author.success) {
-      throw new InternalError('Failed to parse authors');
+    if (!foundAuthors) {
+      throw new InternalError("Failed to fetch authors");
     }
 
-    const topics = await conn.query(`
+    const parsed = await Promise.all(
+      foundAuthors.map(async (a: any) => {
+        const author = TrendingAuthorSchema.safeParse(a);
+        if (!author.success) {
+          throw new InternalError("Failed to parse authors");
+        }
+
+        const topics = await conn.query(
+          `
       SELECT t.idx, t.name
         FROM USER_TOPIC ut
         LEFT JOIN TOPIC t ON t.idx = ut.topic_idx
         WHERE ut.user_idx = ?
       ORDER BY t.seq`,
-      [a.idx]);
+          [a.idx]
+        );
 
-    if (topics?.length > 0) {
-      author.data.topics = topics;
-    }
+        if (topics?.length > 0) {
+          author.data.topics = topics;
+        }
 
-    return author.data as TrendingAuthor;
-  }));
+        return author.data as TrendingAuthor;
+      })
+    );
 
-  respond(res, 200, parsed)
-})
+    respond(res, 200, parsed);
+  }
+);
