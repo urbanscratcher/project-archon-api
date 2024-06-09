@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { InternalError, NotFoundError } from "../dtos/Errors";
-import { InsightRandomListSchema } from "../schemas/insightRandomSchema";
+import { InsightRandomListSchema } from "../schemas/InsightRandomSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 

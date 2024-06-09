@@ -6,7 +6,7 @@ import {
   TrendingAuthorSchema,
   TrendingInsightsSchema,
   type TrendingAuthor,
-} from "../schemas/trendingSchema";
+} from "../schemas/TrendingSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 import { BASIC_TRENDING_LIMIT } from "./../utils/constants";
