@@ -4,25 +4,28 @@ import { InsightRandomListSchema } from "../schemas/insightRandomSchema";
 import { asyncHandledDB } from "../utils/connectDB";
 import { respond } from "../utils/helper";
 
-export const getRandomInsights = asyncHandledDB(async (conn: any, req: Request, res: Response) => {
+export const getRandomInsights = asyncHandledDB(
+  async (conn: any, req: Request, res: Response) => {
+    const limit = req.query?.limit ? +req.query?.limit : 6;
 
-  const limit = req.query?.limit ? +req.query?.limit : 6;
-
-  const randomInsights = await conn.query(`SELECT idx, thumbnail, title, summary
+    const randomInsights = await conn.query(
+      `SELECT idx, thumbnail, title, summary
   FROM INSIGHT
   WHERE del_at IS NULL
   ORDER BY RAND()
-  LIMIT ?`, [limit]);
-  if (randomInsights?.length < 0) {
-    throw new NotFoundError('No insights found');
+  LIMIT ?`,
+      [limit]
+    );
+    if (randomInsights?.length < 0) {
+      throw new NotFoundError("No insights found");
+    }
+
+    const parsedData = InsightRandomListSchema.safeParse(randomInsights);
+
+    if (!parsedData.success) {
+      throw new InternalError("Failed to parse data");
+    }
+
+    respond(res, 200, parsedData.data);
   }
-
-
-  const parsedData = InsightRandomListSchema.safeParse(randomInsights);
-
-  if (!parsedData.success) {
-    throw new InternalError('Failed to parse data');
-  }
-
-  respond(res, 200, parsedData.data)
-});
+);
