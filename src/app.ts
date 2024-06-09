@@ -14,7 +14,12 @@ import insightRouter from "./routers/insightRoutes";
 import meRouter from "./routers/meRoutes";
 import topicRouter from "./routers/topicRoutes";
 import userRouter from "./routers/userRoutes";
-import { ORIGINS, PORT } from "./utils/constants";
+import {
+  ORIGINS,
+  PORT,
+  RATE_LIMIT_AMOUNT,
+  RATE_LIMIT_MIN,
+} from "./utils/constants";
 // @ts-ignore
 import fileUpload from "express-fileupload";
 import imgsRouter from "./routers/imgsRoutes";
@@ -64,8 +69,8 @@ app.use(helmet());
 
 // Limit 100 requests / 1 min
 const limiter = rateLimit({
-  max: 100,
-  windowMs: 30 * 60 * 1000,
+  max: RATE_LIMIT_AMOUNT,
+  windowMs: RATE_LIMIT_MIN * 60 * 1000,
   message: "Too many reqs from this IP, please try again in an hour",
 });
 app.use("/archon-api", limiter);
