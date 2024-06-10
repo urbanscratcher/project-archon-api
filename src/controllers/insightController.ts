@@ -263,7 +263,7 @@ export const deleteInsight = asyncHandledDB(
 
 export const updateInsight = asyncHandledDB(
   async (conn: any, req: Request, res: Response, next: NextFunction) => {
-    const editedBy = getValidUserIdx(req);
+    const editorIdx = getValidUserIdx(req);
     const idx = validateParamIdx(req);
 
     // insight exist check
@@ -275,30 +275,12 @@ export const updateInsight = asyncHandledDB(
       throw new NotFoundError("insight not found");
     }
 
-    // remove existing thumbnail
-    const existingThumbnail = foundInsights[0].thumbnail;
-
-    // check if any thumbnail exists
-    const result = await fetch(existingThumbnail, {
-      method: "HEAD",
+    // cloudinary config
+    cloudinary.config({
+      cloud_name: CLOUDINARY_NAME,
+      api_key: CLOUDINARY_API_KEY,
+      api_secret: CLOUDINARY_API_SECRET,
     });
-
-    // if thumbnail exists remove
-    if (result.status === 200) {
-      const thumbFound = existingThumbnail.match(
-        `(thumbnails\/).*(?=\.(png|jpg|jpeg|webp))`
-      );
-      if (thumbFound?.length > 0) {
-        const pubId = thumbFound?.length > 0 ? thumbFound[0] : "";
-
-        try {
-          const result = await cloudinary.uploader.destroy(pubId);
-          logger.info(`removed the existing thumbnail - ${result}`);
-        } catch (err) {
-          logger.error(err);
-        }
-      }
-    }
 
     // parse
     const title = req.body?.title || null;
@@ -307,58 +289,81 @@ export const updateInsight = asyncHandledDB(
     const summary = req.body?.summary || null;
     const topicIdx = req.body?.topic_idx ?? null;
 
-    // store thumbnail image if user requested
-    if (thumbnail) {
-      const thumbnailPath = thumbnail.match(`(image\/).*`);
-      const thumbnailFromFound = thumbnail.match(
-        `((?=thumbnails\/).+)(?=\.(png|jpg|jpeg|webp))`
+    const thumbnailPath = thumbnail.match(`(image\/).*`);
+    const thumbnailFromFound = thumbnail.match(
+      `((?=thumbnails\/).+)(?=\.(png|jpg|jpeg|webp))`
+    );
+    const thumbnailFrom =
+      thumbnailFromFound?.length > 0 && thumbnailFromFound[0];
+    const thumbnailTo = thumbnailFrom && thumbnailFrom.split("/")[3];
+
+    // remove existing thumbnail
+    const currentThumbnail = foundInsights[0].thumbnail;
+
+    // check if any thumbnail exists
+    const result = await fetch(currentThumbnail, {
+      method: "HEAD",
+    });
+
+    // if thumbnail exists remove
+    let pubId = "";
+    let isThumbnailChanged = false;
+    if (result.status === 200) {
+      // check if thumnb name matches `thumbnails/*.png|jpg|jpeg|webp`
+      const thumbFound = currentThumbnail.match(
+        `(thumbnails\/).*(?=\.(png|jpg|jpeg|webp))`
       );
-      const thumbnailFrom =
-        thumbnailFromFound?.length > 0 && thumbnailFromFound[0];
-      const thumbnailTo = thumbnailFrom && thumbnailFrom.split("/")[3];
 
-      // cloudinary config
-      cloudinary.config({
-        cloud_name: CLOUDINARY_NAME,
-        api_key: CLOUDINARY_API_KEY,
-        api_secret: CLOUDINARY_API_SECRET,
-      });
+      if (thumbFound?.length > 0) {
+        pubId = thumbFound?.length > 0 ? thumbFound[0] : "";
+      }
+    }
 
-      // check if any thumbnail exists
-      const result = await fetch(
-        "https://res.cloudinary.com" +
-          `/${CLOUDINARY_NAME}/${thumbnailPath[0]}`,
-        {
-          method: "HEAD",
-        }
-      );
+    isThumbnailChanged = pubId !== thumbnailFrom;
+    if (isThumbnailChanged) {
+      // remove stored one if thumb changed
+      try {
+        const result = await cloudinary.uploader.destroy(pubId);
+        logger.info(`removed the existing thumbnail - ${result}`);
+      } catch (err) {
+        logger.error(err);
+      }
+    }
 
-      if (result.status === 200) {
-        // move thumbnail
-        await cloudinary.uploader
-          .rename(thumbnailFrom, `thumbnails/${thumbnailTo}`)
-          .then(async (result) => {
-            // clear all imgs in temp
-            cloudinary.search
-              .expression(`folder:thumbnails/temp/${editedBy}`)
-              .max_results(30)
-              .execute()
-              .then((result) => {
-                if (result.total_count > 0) {
-                  result.resources.forEach((el: any) => {
-                    cloudinary.uploader
-                      .destroy(el.public_id)
-                      .then((result) => logger.debug(result))
-                      .catch((err) => logger.error(err));
-                  });
-                } else {
-                  logger.info("No temp images to be removed found");
-                }
-              })
-              .catch((err) => logger.warn(err));
+    // check if any thumbnail exists
+    const checkThumbnailExist = await fetch(
+      "https://res.cloudinary.com" + `/${CLOUDINARY_NAME}/${thumbnailPath[0]}`,
+      {
+        method: "HEAD",
+      }
+    );
 
-            await conn.query(
-              `
+    if (checkThumbnailExist.status === 200 && isThumbnailChanged) {
+      // move thumbnail
+      await cloudinary.uploader
+        .rename(thumbnailFrom, `thumbnails/${thumbnailTo}`)
+        .then(async (result) => {
+          // clear all imgs in temp
+          cloudinary.search
+            .expression(`folder:thumbnails/temp/${editorIdx}`)
+            .max_results(30)
+            .execute()
+            .then((result) => {
+              if (result.total_count > 0) {
+                result.resources.forEach((el: any) => {
+                  cloudinary.uploader
+                    .destroy(el.public_id)
+                    .then((result) => logger.debug(result))
+                    .catch((err) => logger.error(err));
+                });
+              } else {
+                logger.info("No temp images to be removed found");
+              }
+            })
+            .catch((err) => logger.warn(err));
+
+          await conn.query(
+            `
       UPDATE INSIGHT SET
         title = ?,
         thumbnail = ?,
@@ -369,34 +374,24 @@ export const updateInsight = asyncHandledDB(
         edited_at = ?   
       WHERE idx = ?
     `,
-              [
-                title,
-                result.secure_url,
-                content,
-                summary,
-                topicIdx,
-                editedBy,
-                toMysqlDate(),
-                idx,
-              ]
-            );
-          })
-          .catch((err) => console.error(err));
-      } else {
-        await conn.query(
-          `
-  UPDATE INSIGHT SET
-    title = ?,
-    content = ?,
-    summary = ?,
-    topic_idx = ?,
-    edited_by = ?,
-    edited_at = ?   
-  WHERE idx = ?
-`,
-          [title, content, summary, topicIdx, editedBy, toMysqlDate(), idx]
-        );
-      }
+            [
+              title,
+              `${
+                isThumbnailChanged
+                  ? "https://res.cloudinary.com" +
+                    `/${CLOUDINARY_NAME}/${thumbnailPath[0]}`
+                  : currentThumbnail
+              }`,
+              content,
+              summary,
+              topicIdx,
+              editorIdx,
+              toMysqlDate(),
+              idx,
+            ]
+          );
+        })
+        .catch((err) => console.error(err));
     } else {
       await conn.query(
         `
@@ -409,7 +404,7 @@ export const updateInsight = asyncHandledDB(
       edited_at = ?   
     WHERE idx = ?
   `,
-        [title, content, summary, topicIdx, editedBy, toMysqlDate(), idx]
+        [title, content, summary, topicIdx, editorIdx, toMysqlDate(), idx]
       );
     }
 
